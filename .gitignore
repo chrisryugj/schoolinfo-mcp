@@ -8,3 +8,6 @@ downloads/
 smoke.mjs
 test_eval.mjs
 .flyappname
+dbg*.mjs
+test_nationwide.mjs
+si_dl/

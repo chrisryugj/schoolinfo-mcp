@@ -42,6 +42,7 @@
     "@modelcontextprotocol/sdk": "^1.28.0",
     "iconv-lite": "^0.6.3",
     "kordoc": "^3.1.1",
+    "pdfjs-dist": "^4.10.38",
     "zod": "^3.23.0"
   },
   "devDependencies": {

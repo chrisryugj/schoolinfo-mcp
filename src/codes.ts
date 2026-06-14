@@ -78,13 +78,29 @@ export function findApiType(query: string): { code: string; name: string }[] {
     .map(([code, name]) => ({ code, name }));
 }
 
-/** 시도명 정규화 — "서울" → "서울특별시" 같은 약칭 허용 */
+/** 시도 약칭(글자축약형 포함) → 정식 명칭 */
+const SIDO_ALIAS: Record<string, string> = {
+  서울: "서울특별시", 부산: "부산광역시", 대구: "대구광역시", 인천: "인천광역시",
+  광주: "광주광역시", 대전: "대전광역시", 울산: "울산광역시", 세종: "세종특별자치시",
+  경기: "경기도", 강원: "강원특별자치도", 충북: "충청북도", 충남: "충청남도",
+  전북: "전북특별자치도", 전남: "전라남도", 경북: "경상북도", 경남: "경상남도",
+  제주: "제주특별자치도",
+  // 구 명칭 호환
+  강원도: "강원특별자치도", 전라북도: "전북특별자치도", 제주도: "제주특별자치도",
+};
+
+/** 시도명 정규화 — "서울"·"충북"·"강원도" 같은 약칭/구명칭 허용 */
 export function resolveSido(input: string): { name: string; code: string } | null {
   const t = input.trim();
+  // 1) 정확 매칭
+  if (REGIONS[t]) return { name: t, code: REGIONS[t].code };
+  // 2) 약칭 테이블
+  const alias = SIDO_ALIAS[t];
+  if (alias && REGIONS[alias]) return { name: alias, code: REGIONS[alias].code };
+  // 3) 접두/축약 휴리스틱
   for (const [name, info] of Object.entries(REGIONS)) {
-    if (name === t || name.startsWith(t) || t.startsWith(name.replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, ""))) {
-      return { name, code: info.code };
-    }
+    const bare = name.replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, "");
+    if (name.startsWith(t) || t.startsWith(bare)) return { name, code: info.code };
   }
   return null;
 }

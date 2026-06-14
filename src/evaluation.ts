@@ -168,9 +168,12 @@ export async function autoFetchEvaluation(
       `${year}년도 평가계획 첨부파일을 찾지 못했습니다. (연도를 바꿔보거나 ${DISCLOSURE_PORTAL} 직접 확인)`
     );
   }
-  // hwp/hwpx 우선, 없으면 전체
-  const docFiles = files.filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename));
-  const targets = opts.all ? docFiles : docFiles.slice(0, 1).length ? [docFiles[0]] : [files[0]];
+  // 파싱 가능한 문서만, 수행평가 관련성 높은 순으로 정렬
+  // (과목별 "교수학습/평가계획" > 기타 > 학업성적관리규정)
+  const docFiles = files
+    .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
+    .sort((a, b) => evalScore(a.filename) - evalScore(b.filename));
+  const targets = opts.all ? docFiles : docFiles.length ? [docFiles[0]] : [files[0]];
 
   const results: EvaluationResult[] = [];
   for (const f of targets) {
@@ -185,6 +188,13 @@ export async function autoFetchEvaluation(
     });
   }
   return results;
+}
+
+/** 파일명 기반 수행평가 관련성 점수 (낮을수록 우선) */
+function evalScore(filename: string): number {
+  if (/교수.?학습|평가\s*계획|평가\s*운영/.test(filename)) return 0;
+  if (/학업성적관리/.test(filename)) return 2;
+  return 1;
 }
 
 /** 평가계획 찾는 법 안내 (자동 다운로드 실패 시 폴백) */

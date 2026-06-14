@@ -14,6 +14,7 @@ const BASE_URL = "https://www.schoolinfo.go.kr/openApi.do";
 
 export interface School {
   schoolCode: string; // SCHUL_CODE — 공시 학교코드 (모든 상세조회의 키)
+  shlIdfCd: string; // SHL_IDF_CD — 학교고유식별코드 (평가계획 웹 다운로드 키)
   name: string; // SCHUL_NM
   kind: string; // 학교급명 (중학교 등)
   foundation: string; // 설립구분 (공립/사립/국립)
@@ -132,6 +133,7 @@ function toSchool(
 ): School {
   return {
     schoolCode: r.SCHUL_CODE,
+    shlIdfCd: r.SHL_IDF_CD ?? "",
     name: r.SCHUL_NM,
     kind: r.SCHUL_CRSE_SC_VALUE_NM ? `${r.SCHUL_CRSE_SC_VALUE_NM}학교` : "",
     foundation: r.FOND_SC_CODE ?? "",

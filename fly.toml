@@ -1,0 +1,18 @@
+# fly.io 배포 설정 — `fly launch` 또는 `fly deploy`로 사용
+# 인증키는 코드/이 파일이 아니라 secret으로: fly secrets set SCHOOLINFO_API_KEY=...
+
+app = "urischool-9610"
+primary_region = "nrt"  # 도쿄 (한국에서 가장 가까운 fly 리전)
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

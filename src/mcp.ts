@@ -17,6 +17,7 @@ import {
 import {
   evaluationGuide,
   parseEvaluationDocument,
+  autoFetchEvaluation,
 } from "./evaluation.js";
 
 const KINDS = Object.keys(SCHOOL_KIND) as [SchoolKindName, ...SchoolKindName[]];
@@ -160,25 +161,45 @@ server.tool(
   }
 );
 
-// ─── 5. 평가계획(수행평가) 찾기 안내 ────────────────────
+// ─── 5. 평가계획(수행평가) 자동 조회 ────────────────────
 server.tool(
-  "get_evaluation_guide",
-  "수행평가 주제·평가기준이 담긴 '교과별 교수·학습 및 평가 운영 계획' hwp를 학교알리미에서 찾는 방법을 안내합니다. (이 항목은 OpenAPI에 없고 hwp 첨부로만 공시됨)",
+  "get_evaluation_plan",
+  "학교의 '교과별 교수·학습 및 평가 운영 계획'(수행평가 주제·평가기준·반영비율)을 학교알리미에서 자동으로 내려받아 마크다운으로 변환하고 수행평가 표를 추출합니다.",
   {
     sido: z.string(),
     sgg: z.string(),
     kind: z.enum(KINDS),
     name: z.string().describe("학교명"),
-    year: z.number().optional(),
+    year: z.number().optional().describe("공시연도 (기본: 올해)"),
+    full: z.boolean().optional().describe("true면 전체 문서, 기본은 수행평가 섹션 위주"),
   },
-  async ({ sido, sgg, kind, name, year }) => {
+  async ({ sido, sgg, kind, name, year, full }) => {
     try {
       const client = getClient();
       const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
       if (many) return ok(`여러 학교가 검색됨:\n` + many.map((s) => `- ${s.name}`).join("\n"));
       if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
-      return ok(evaluationGuide(school, year));
+
+      const results = await autoFetchEvaluation(school, year);
+      const parts: string[] = [`# ${school.name} — 교수·학습 및 평가 운영 계획\n`];
+      for (const r of results) {
+        parts.push(`## 📄 ${r.filename} (${r.fileType})\n`);
+        if (r.evaluationSections.length) {
+          parts.push(`### 🎯 수행평가 관련 (${r.evaluationSections.length}개)\n`);
+          parts.push(r.evaluationSections.join("\n\n---\n\n"));
+        }
+        if (full || !r.evaluationSections.length) {
+          parts.push(`\n### 전체 문서\n`, r.markdown);
+        }
+      }
+      return ok(parts.join("\n"));
     } catch (e: any) {
+      // 자동 다운로드 실패 시 수동 안내로 폴백
+      try {
+        const client = getClient();
+        const { school } = await resolveSchool(client, sido, sgg, kind, name);
+        if (school) return ok(`⚠️ 자동 조회 실패: ${e.message}\n\n` + evaluationGuide(school, year));
+      } catch {}
       return err(`오류: ${e.message}`);
     }
   }

@@ -16,8 +16,10 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "start": "node dist/mcp.js",
+    "start": "node dist/server.js",
+    "mcp": "node dist/mcp.js",
     "cli": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "keywords": [

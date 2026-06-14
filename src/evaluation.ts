@@ -1,79 +1,228 @@
 // 교과별(학년별) 교수·학습 및 평가 운영 계획 (= 수행평가 주제/평가기준)
 //
-// ⚠️ 이 항목은 학교알리미 OpenAPI 정형 데이터에 없음. hwp 첨부파일로만 공시됨.
-//    따라서 두 가지 경로를 제공한다:
-//    1) 학교별 공시정보 페이지 딥링크 — 학부모가 직접 hwp를 내려받는 경로 안내
-//    2) 내려받은 hwp/hwpx/pdf 파일을 kordoc으로 파싱 → 마크다운 + 수행평가 섹션 추출
+// 이 항목은 학교알리미 OpenAPI 정형 데이터에 없고 hwp/hwpx 첨부파일로만 공시된다.
+// 하지만 학교별 공시정보 웹의 내부 요청을 그대로 재현하면 **순수 HTTP fetch로**
+// 자동 다운로드가 가능하다 (브라우저 자동화 불필요). 흐름:
+//
+//   1) OpenAPI 학교기본정보 → SHL_IDF_CD (학교고유식별코드)
+//   2) POST /ei/pp/Pneipp_b43_s0p.do  → 첨부파일 목록 + 다운로드 파라미터 (EUC-KR HTML)
+//   3) GET  /servlets/EiFileDownLoad.do?...&FILE_SEQ=n → hwp/hwpx
+//   4) kordoc parse → 마크다운 + 수행평가 섹션 추출
 
 import { parse } from "kordoc";
+import iconv from "iconv-lite";
 import type { School } from "./client.js";
 
-/** 학교별 공시정보 검색 페이지 (학교명으로 진입) */
-export const DISCLOSURE_PORTAL = "https://www.schoolinfo.go.kr/ei/ss/pneiss_a03_s0.do";
+const BASE = "https://www.schoolinfo.go.kr";
+export const DISCLOSURE_PORTAL = `${BASE}/ei/ss/pneiss_a03_s0.do`;
+
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
+
+// "교과별(학년별) 교수·학습 및 평가계획에 관한 사항" 공시항목 고정 코드
+// (학교알리미 공시항목 자체의 분류 코드 — 모든 학교 공통)
+const EVAL_ITEM = {
+  GS_HANGMOK_CD: "43",
+  GS_HANGMOK_NO: "4-가",
+  GS_HANGMOK_NM: "교과별(학년별) 교수ㆍ학습 및 평가계획에 관한 사항",
+  GS_BURYU_CD: "JG110",
+  JG_BURYU_CD: "JG040",
+  JG_HANGMOK_CD: "14",
+  JG_GUBUN: "1",
+};
+
+export interface EvaluationFile {
+  seq: string; // FILE_SEQ
+  filename: string;
+  sizeKB?: number;
+}
+
+/** 평가계획 첨부파일 목록 + 다운로드 파라미터 조회 (POST b43) */
+export async function fetchEvaluationFiles(
+  shlIdfCd: string,
+  schoolName: string,
+  year = new Date().getFullYear()
+): Promise<{ files: EvaluationFile[]; downloadParams: Record<string, string> }> {
+  if (!shlIdfCd) throw new Error("학교고유식별코드(SHL_IDF_CD)가 없습니다.");
+  const body = new URLSearchParams({
+    ...EVAL_ITEM,
+    HG_NM: schoolName,
+    SHL_IDF_CD: shlIdfCd,
+    GS_TYPE: "Y",
+    JG_YEAR: String(year),
+    SORT: "BR",
+    CHOSEN_JG_YEAR: String(year),
+    PRE_JG_YEAR: String(year),
+    LOAD_TYPE: "single",
+  });
+
+  const res = await fetch(`${BASE}/ei/pp/Pneipp_b43_s0p.do`, {
+    method: "POST",
+    headers: {
+      "User-Agent": UA,
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/x-www-form-urlencoded",
+      Referer: `${BASE}/ei/ss/Pneiss_b01_s0.do`,
+    },
+    body,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} — 평가계획 항목 조회 실패`);
+  const html = iconv.decode(Buffer.from(await res.arrayBuffer()), "euc-kr");
+
+  // 첨부파일 목록: getEiFile43('N') + 파일명.확장자(NN KB)
+  const files = parseFileList(html);
+  // 다운로드 폼 파라미터 (eiFileDownForm hidden)
+  const downloadParams = parseDownloadParams(html, shlIdfCd, year);
+
+  return { files, downloadParams };
+}
+
+function parseFileList(html: string): EvaluationFile[] {
+  const files: EvaluationFile[] = [];
+  // <a ... onclick="getEiFile43('5')...">파일명.hwpx(89 KB)</a>
+  const re =
+    /onclick="[^"]*getEiFile43\('(\d+)'\)[^"]*"[^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*\(([\d.]+)\s*KB\)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    files.push({ seq: m[1], filename: m[2].trim(), sizeKB: parseFloat(m[3]) });
+  }
+  // 폴백: 순서 기반 매칭 (구조가 다를 때)
+  if (files.length === 0) {
+    const seqs = [...html.matchAll(/getEiFile43\('(\d+)'\)/g)].map((x) => x[1]);
+    const names = [...html.matchAll(/([^>\s][^<>]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*\(([\d.]+)\s*KB\)/gi)];
+    seqs.forEach((seq, i) => {
+      if (names[i]) files.push({ seq, filename: names[i][1].trim(), sizeKB: parseFloat(names[i][2]) });
+    });
+  }
+  return files;
+}
+
+function parseDownloadParams(
+  html: string,
+  shlIdfCd: string,
+  year: number
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  const formIdx = html.indexOf("eiFileDownForm");
+  const seg = formIdx >= 0 ? html.slice(formIdx, formIdx + 1200) : html;
+  const re = /name="([A-Z_]+)"[^>]*?value="([^"]*)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(seg))) {
+    if (!(m[1] in params)) params[m[1]] = m[2];
+  }
+  // 필수값 보강
+  params.SHL_IDF_CD ??= shlIdfCd;
+  params.JG_BURYU_CD ??= EVAL_ITEM.JG_BURYU_CD;
+  params.JG_HANGMOK_CD ??= EVAL_ITEM.JG_HANGMOK_CD;
+  params.JG_GUBUN ??= EVAL_ITEM.JG_GUBUN;
+  params.JG_YEAR ??= String(year);
+  params.JG_CHASU ??= "1";
+  params.PRE_JG_YEAR ??= String(year);
+  return params;
+}
+
+/** 특정 첨부파일 다운로드 (GET EiFileDownLoad) */
+export async function downloadEvaluationFile(
+  downloadParams: Record<string, string>,
+  seq: string
+): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  const qs = new URLSearchParams({ ...downloadParams, FILE_SEQ: seq });
+  const res = await fetch(`${BASE}/servlets/EiFileDownLoad.do?${qs}`, {
+    headers: { "User-Agent": UA, Referer: `${BASE}/ei/pp/Pneipp_b43_s0p.do` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} — 파일 다운로드 실패`);
+  const buffer = await res.arrayBuffer();
+  // Content-Disposition에서 파일명 (RFC URL-encoded)
+  let filename = `evaluation_${seq}`;
+  const cd = res.headers.get("content-disposition") ?? "";
+  const fm = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
+  if (fm) {
+    try {
+      filename = decodeURIComponent(fm[1].trim());
+    } catch {
+      filename = fm[1].trim();
+    }
+  }
+  return { buffer, filename };
+}
+
+export interface EvaluationResult {
+  filename: string;
+  fileType: string;
+  markdown: string;
+  evaluationSections: string[];
+}
 
 /**
- * 평가계획 hwp를 찾아가는 안내 텍스트 생성.
- * (직접 다운로드 URL은 세션/리퍼러 검증으로 비공개이므로 경로를 안내)
+ * 학교의 평가계획을 **자동으로** 다운로드하고 kordoc으로 파싱한다.
+ * hwp/hwpx 첨부를 우선 선택 (수행평가 평가계획 본문).
  */
+export async function autoFetchEvaluation(
+  school: School,
+  year = new Date().getFullYear(),
+  opts: { all?: boolean } = {}
+): Promise<EvaluationResult[]> {
+  const { files, downloadParams } = await fetchEvaluationFiles(school.shlIdfCd, school.name, year);
+  if (!files.length) {
+    throw new Error(
+      `${year}년도 평가계획 첨부파일을 찾지 못했습니다. (연도를 바꿔보거나 ${DISCLOSURE_PORTAL} 직접 확인)`
+    );
+  }
+  // hwp/hwpx 우선, 없으면 전체
+  const docFiles = files.filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename));
+  const targets = opts.all ? docFiles : docFiles.slice(0, 1).length ? [docFiles[0]] : [files[0]];
+
+  const results: EvaluationResult[] = [];
+  for (const f of targets) {
+    const { buffer, filename } = await downloadEvaluationFile(downloadParams, f.seq);
+    const parsed = await parse(buffer, { filePath: filename });
+    const markdown = parsed.success ? parsed.markdown ?? "" : "";
+    results.push({
+      filename: filename || f.filename,
+      fileType: parsed.fileType ?? "unknown",
+      markdown,
+      evaluationSections: extractEvaluationSections(markdown),
+    });
+  }
+  return results;
+}
+
+/** 평가계획 찾는 법 안내 (자동 다운로드 실패 시 폴백) */
 export function evaluationGuide(school: School, year = new Date().getFullYear()): string {
   return [
-    `📋 "${school.name}"의 교수·학습 및 평가 운영 계획(수행평가 주제·평가기준) 찾기`,
+    `📋 "${school.name}"의 교수·학습 및 평가 운영 계획(수행평가) 수동 확인`,
     ``,
-    `1. 학교별 공시정보 접속: ${DISCLOSURE_PORTAL}`,
-    `2. "${school.name}" 검색 (앞 2~3글자만 입력하면 자동완성)`,
-    `3. 연도를 ${year}으로 맞추기`,
-    `4. 우측 "학업성취사항" → 그 아래 "교과별(학년별) 교수·학습 및 평가계획" 클릭`,
-    `5. 스크롤하면 학년별 .hwp 파일 다운로드 가능`,
-    ``,
+    `1. 학교별 공시정보: ${DISCLOSURE_PORTAL}`,
+    `2. "${school.name}" 검색 → 연도 ${year}`,
+    `3. "학업성취사항" → "교과별(학년별) 교수·학습 및 평가계획"`,
+    `4. 학년별 .hwp 다운로드`,
     `   학교 홈페이지: ${school.homepage || "(미등록)"}`,
-    ``,
-    `💡 받은 hwp 파일을 이 도구의 parse_evaluation_file(또는 CLI parse 명령)에 넣으면`,
-    `   마크다운으로 변환하고 수행평가 항목만 뽑아드립니다.`,
   ].join("\n");
 }
 
-export interface EvaluationParseResult {
-  fileType: string;
-  markdown: string;
-  /** 수행평가/평가 관련으로 추정되는 섹션들 */
-  evaluationSections: string[];
-  warnings?: string[];
-}
-
-/**
- * 내려받은 평가계획 문서(hwp/hwpx/pdf/docx 등)를 kordoc으로 파싱하고
- * 수행평가 관련 섹션을 추출한다.
- */
+/** 내려받은(혹은 업로드된) 평가계획 문서를 kordoc으로 파싱 */
 export async function parseEvaluationDocument(
   input: ArrayBuffer | Buffer,
   filePath?: string
-): Promise<EvaluationParseResult> {
+): Promise<{ fileType: string; markdown: string; evaluationSections: string[] }> {
   const buf = input instanceof ArrayBuffer ? input : toArrayBuffer(input);
   const result = await parse(buf, filePath ? { filePath } : undefined);
-  if (!result.success) {
-    throw new Error("문서 파싱 실패");
-  }
+  if (!result.success) throw new Error("문서 파싱 실패");
   const markdown = result.markdown ?? "";
   return {
     fileType: result.fileType ?? "unknown",
     markdown,
     evaluationSections: extractEvaluationSections(markdown),
-    warnings: result.warnings?.map((w: any) => (typeof w === "string" ? w : w.message ?? String(w))),
   };
 }
 
-/**
- * 마크다운에서 수행평가/평가 관련 구간을 휴리스틱으로 추출.
- * 평가계획 문서는 보통 표 위주라, 평가 키워드가 포함된 표/문단 블록을 모은다.
- */
+/** 마크다운에서 수행평가/평가 관련 구간 추출 */
 export function extractEvaluationSections(markdown: string): string[] {
-  const KEYWORDS = ["수행평가", "평가기준", "평가요소", "평가방법", "평가영역", "성취기준", "반영비율", "평가시기"];
+  const KEYWORDS = ["수행평가", "평가기준", "평가요소", "평가방법", "평가영역", "반영비율", "평가시기", "성취기준", "지필", "정기시험"];
   const blocks = markdown.split(/\n\s*\n/);
   const hits: string[] = [];
   for (const block of blocks) {
-    if (KEYWORDS.some((k) => block.includes(k))) {
-      hits.push(block.trim());
-    }
+    if (KEYWORDS.some((k) => block.includes(k))) hits.push(block.trim());
   }
   return hits;
 }

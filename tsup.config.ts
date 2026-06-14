@@ -15,4 +15,10 @@ export default defineConfig([
     clean: false,
     banner: { js: "#!/usr/bin/env node" },
   },
+  {
+    entry: ["src/server.ts"],
+    format: ["esm"],
+    dts: false,
+    clean: false,
+  },
 ]);

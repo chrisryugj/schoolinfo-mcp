@@ -5,3 +5,6 @@ dist/
 .env.local
 .DS_Store
 downloads/
+smoke.mjs
+test_eval.mjs
+.flyappname

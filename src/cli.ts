@@ -14,7 +14,7 @@ import { execFile } from "child_process";
 import { SchoolInfoClient, School } from "./client.js";
 import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
-import { evaluationGuide, parseEvaluationDocument } from "./evaluation.js";
+import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation } from "./evaluation.js";
 
 const KINDS = Object.keys(SCHOOL_KIND);
 const STATE_DIR = join(homedir(), ".schoolinfo-mcp");
@@ -95,7 +95,21 @@ async function main() {
       requireKind(kind); requireName(name);
       const c = client();
       const school = await pickSchool(c, sido, sgg, kind as SchoolKindName, name);
-      console.log(evaluationGuide(school, year ? Number(year) : undefined));
+      try {
+        const results = await autoFetchEvaluation(school, year ? Number(year) : undefined);
+        for (const r of results) {
+          console.log(`\n## 📄 ${r.filename} (${r.fileType})\n`);
+          if (r.evaluationSections.length) {
+            console.log(`### 🎯 수행평가 관련 (${r.evaluationSections.length}개)\n`);
+            console.log(r.evaluationSections.join("\n\n---\n\n"));
+          } else {
+            console.log(r.markdown);
+          }
+        }
+      } catch (e: any) {
+        console.error(`⚠️ 자동 조회 실패: ${e.message}\n`);
+        console.log(evaluationGuide(school, year ? Number(year) : undefined));
+      }
       break;
     }
     case "parse": {

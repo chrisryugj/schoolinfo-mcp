@@ -18,8 +18,12 @@ export {
   evaluationGuide,
   parseEvaluationDocument,
   extractEvaluationSections,
+  autoFetchEvaluation,
+  fetchEvaluationFiles,
+  downloadEvaluationFile,
   DISCLOSURE_PORTAL,
 } from "./evaluation.js";
+export type { EvaluationResult, EvaluationFile } from "./evaluation.js";
 
 import { SchoolInfoClient, School } from "./client.js";
 import { API_TYPES } from "./codes.js";

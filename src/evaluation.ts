@@ -154,39 +154,59 @@ export interface EvaluationResult {
 }
 
 /**
- * 학교의 평가계획을 **자동으로** 다운로드하고 kordoc으로 파싱한다.
- * hwp/hwpx 첨부를 우선 선택 (수행평가 평가계획 본문).
+ * 평가계획 첨부파일 목록을 수행평가 관련성 순으로 정렬해 반환한다 (다운로드/파싱 전).
+ * 과목별로 쪼개진 학교(과목별 PDF 여러 개)는 목록을 먼저 보여주고 선택하게 하기 위함.
  */
-export async function autoFetchEvaluation(
+export async function listEvaluationDocs(
   school: School,
-  year = new Date().getFullYear(),
-  opts: { all?: boolean } = {}
-): Promise<EvaluationResult[]> {
+  year = new Date().getFullYear()
+): Promise<{ docs: EvaluationFile[]; downloadParams: Record<string, string> }> {
   const { files, downloadParams } = await fetchEvaluationFiles(school.shlIdfCd, school.name, year);
   if (!files.length) {
     throw new Error(
       `${year}년도 평가계획 첨부파일을 찾지 못했습니다. (연도를 바꿔보거나 ${DISCLOSURE_PORTAL} 직접 확인)`
     );
   }
-  // 파싱 가능한 문서만, 수행평가 관련성 높은 순으로 정렬
-  // (과목별 "교수학습/평가계획" > 기타 > 학업성적관리규정)
-  const docFiles = files
+  const docs = files
     .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
     .sort((a, b) => evalScore(a.filename) - evalScore(b.filename));
-  const targets = opts.all ? docFiles : docFiles.length ? [docFiles[0]] : [files[0]];
+  return { docs: docs.length ? docs : files, downloadParams };
+}
+
+/** 특정 첨부파일을 다운로드 + kordoc 파싱 */
+export async function fetchEvaluationBySeq(
+  downloadParams: Record<string, string>,
+  file: EvaluationFile
+): Promise<EvaluationResult> {
+  const { buffer, filename } = await downloadEvaluationFile(downloadParams, file.seq);
+  const parsed = await parse(buffer, { filePath: filename });
+  const markdown = parsed.success ? parsed.markdown ?? "" : "";
+  return {
+    filename: filename || file.filename,
+    fileType: parsed.fileType ?? "unknown",
+    markdown,
+    evaluationSections: extractEvaluationSections(markdown),
+  };
+}
+
+/**
+ * 학교의 평가계획을 **자동으로** 다운로드하고 kordoc으로 파싱한다.
+ * - 기본: 우선순위 1순위 파일 1개
+ * - opts.all: 전체 과목 파일
+ * - opts.seq: 특정 파일만 (과목 선택)
+ */
+export async function autoFetchEvaluation(
+  school: School,
+  year = new Date().getFullYear(),
+  opts: { all?: boolean; seq?: string } = {}
+): Promise<EvaluationResult[]> {
+  const { docs, downloadParams } = await listEvaluationDocs(school, year);
+  let targets = docs;
+  if (opts.seq) targets = docs.filter((d) => d.seq === opts.seq);
+  else if (!opts.all) targets = docs.slice(0, 1);
 
   const results: EvaluationResult[] = [];
-  for (const f of targets) {
-    const { buffer, filename } = await downloadEvaluationFile(downloadParams, f.seq);
-    const parsed = await parse(buffer, { filePath: filename });
-    const markdown = parsed.success ? parsed.markdown ?? "" : "";
-    results.push({
-      filename: filename || f.filename,
-      fileType: parsed.fileType ?? "unknown",
-      markdown,
-      evaluationSections: extractEvaluationSections(markdown),
-    });
-  }
+  for (const f of targets) results.push(await fetchEvaluationBySeq(downloadParams, f));
   return results;
 }
 

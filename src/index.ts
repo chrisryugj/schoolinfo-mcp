@@ -19,6 +19,8 @@ export {
   parseEvaluationDocument,
   extractEvaluationSections,
   autoFetchEvaluation,
+  listEvaluationDocs,
+  fetchEvaluationBySeq,
   fetchEvaluationFiles,
   downloadEvaluationFile,
   DISCLOSURE_PORTAL,

@@ -106,13 +106,36 @@ $('find').onclick = async () => {
 function esc(s){ return s.replace(/'/g,"\\\\'"); }
 function params(name){ return new URLSearchParams({sido:$('sido').value, sgg:$('sgg').value, kind:$('kind').value, name}); }
 
-async function loadEval(name){
-  $('output').innerHTML = '<div class="card spin">📋 '+name+' 수행평가 계획을 학교알리미에서 가져오는 중… (hwp 다운로드+변환, 10초 정도)</div>';
+let EVAL_NAME = '';
+async function loadEval(name, seq){
+  EVAL_NAME = name;
+  const what = seq ? '선택한 과목을' : '수행평가 계획을';
+  $('output').innerHTML = '<div class="card spin">📋 '+name+' '+what+' 학교알리미에서 가져오는 중… (다운로드+변환, 5~10초)</div>';
   try {
-    const r = await fetch('/api/evaluation?'+params(name));
+    const p = params(name); if (seq) p.set('seq', seq);
+    const r = await fetch('/api/evaluation?'+p);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
+    if (d.mode === 'list') {
+      // 과목별로 쪼개진 학교 → 과목 선택 버튼
+      const btns = d.files.map(f => '<button class="ghost" style="margin:4px 4px 0 0" onclick="loadEval(\\''+esc(name)+'\\',\\''+f.seq+'\\')">'+f.filename.replace(/\\.(pdf|hwpx?|docx)$/i,'')+'</button>').join('');
+      $('output').innerHTML = '<div class="card"><h2>📋 '+d.school+' — 과목/문서 선택</h2>'
+        + '<p class="spin">이 학교는 과목별로 평가계획이 나뉘어 있어요. 원하는 과목을 누르세요.</p>'
+        + btns + '<div style="margin-top:8px"><button onclick="loadAllEval(\\''+esc(name)+'\\')">📚 전체 한꺼번에 보기</button></div></div>';
+      $('output').scrollIntoView({behavior:'smooth'});
+      return;
+    }
     render('📋 '+d.school+' 수행평가 계획', d.markdown);
+  } catch(e){ $('output').innerHTML='<div class="card">오류: '+e.message+'</div>'; }
+}
+async function loadAllEval(name){
+  $('output').innerHTML = '<div class="card spin">📚 '+name+' 전체 과목을 가져오는 중… (과목 수만큼 시간이 걸려요)</div>';
+  try {
+    const p = params(name); p.set('all','1');
+    const r = await fetch('/api/evaluation?'+p);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    render('📚 '+d.school+' 수행평가 계획 (전체)', d.markdown);
   } catch(e){ $('output').innerHTML='<div class="card">오류: '+e.message+'</div>'; }
 }
 async function loadDigest(name){

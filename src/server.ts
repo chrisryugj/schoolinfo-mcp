@@ -6,7 +6,7 @@
 import http from "http";
 import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
-import { autoFetchEvaluation, evaluationGuide } from "./evaluation.js";
+import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide } from "./evaluation.js";
 import { renderPage } from "./web.js";
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -79,25 +79,43 @@ const server = http.createServer(async (req, res) => {
       }
 
       // 수행평가/평가계획 자동 조회
+      //  - seq 없음 + 파일 여러 개 → 과목 목록 반환 (선택용)
+      //  - seq 지정 또는 파일 1개 → 해당 파일 파싱
       if (url.pathname === "/api/evaluation") {
         const school = await resolve();
         if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
+        const seq = q.get("seq");
+        const all = q.get("all") === "1";
         try {
-          const results = await autoFetchEvaluation(school, year);
-          const md = results
-            .map((r) => {
-              const parts = [`## 📄 ${r.filename}`];
-              if (r.evaluationSections.length) {
-                parts.push(`\n### 🎯 수행평가 관련\n`, r.evaluationSections.join("\n\n---\n\n"));
-              }
-              parts.push(`\n<details><summary>전체 문서 보기</summary>\n\n${r.markdown}\n</details>`);
-              return parts.join("\n");
-            })
-            .join("\n\n");
-          return json(res, 200, { school: school.name, markdown: md });
+          const { docs, downloadParams } = await listEvaluationDocs(school, year);
+          if (!seq && !all && docs.length > 1) {
+            // 과목별로 쪼개진 학교 → 목록 반환
+            return json(res, 200, {
+              school: school.name,
+              mode: "list",
+              files: docs.map((d) => ({ seq: d.seq, filename: d.filename, sizeKB: d.sizeKB })),
+            });
+          }
+          const targets = all ? docs : [seq ? docs.find((d) => d.seq === seq) ?? docs[0] : docs[0]];
+          const sections: string[] = [];
+          for (const t of targets) {
+            const r = await fetchEvaluationBySeq(downloadParams, t);
+            const parts = [`## 📄 ${r.filename}`];
+            if (r.evaluationSections.length) {
+              parts.push(`\n### 🎯 수행평가 관련\n`, r.evaluationSections.join("\n\n---\n\n"));
+            }
+            parts.push(`\n<details><summary>전체 문서 보기</summary>\n\n${r.markdown}\n</details>`);
+            sections.push(parts.join("\n"));
+          }
+          return json(res, 200, {
+            school: school.name,
+            mode: "doc",
+            markdown: sections.join("\n\n"),
+          });
         } catch (e: any) {
           return json(res, 200, {
             school: school.name,
+            mode: "doc",
             markdown: `> ⚠️ 자동 조회 실패: ${e.message}\n\n${evaluationGuide(school, year)}`,
           });
         }

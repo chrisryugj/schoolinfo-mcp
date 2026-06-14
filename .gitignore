@@ -11,3 +11,5 @@ test_eval.mjs
 dbg*.mjs
 test_nationwide.mjs
 si_dl/
+reg*.mjs
+dbg*.mjs

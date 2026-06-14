@@ -84,8 +84,9 @@ export function formatDisclosure(
   const label = (k: string) => (labelMap[k] ?? k).replace(/^(초등부|중등부|고등부)-/, "");
   const lines = [`### ${name}`, ``];
   for (const row of rows) {
+    // 값 0("학업중단 0명" 등)은 의미 있는 정보이므로 표시. 빈값/null만 숨김.
     const entries = Object.entries(row).filter(
-      ([k, v]) => !HIDE.has(k) && v != null && v !== "" && v !== 0
+      ([k, v]) => !HIDE.has(k) && v != null && v !== ""
     );
     lines.push(`| 항목 | 값 |`, `|------|------|`);
     for (const [k, v] of entries) lines.push(`| ${label(k)} | ${v} |`);

@@ -7,7 +7,7 @@ import {
   SCHOOL_KIND,
   SchoolKindName,
   resolveSido,
-  resolveSgg,
+  resolveSggList,
 } from "./codes.js";
 
 const BASE_URL = "https://www.schoolinfo.go.kr/openApi.do";
@@ -54,9 +54,17 @@ export class SchoolInfoClient {
     url.searchParams.set("sggCode", opts.sggCode);
     if (opts.pbanYr != null) url.searchParams.set("pbanYr", String(opts.pbanYr));
 
-    const res = await fetch(url, {
-      headers: { "User-Agent": "schoolinfo-mcp/0.1" },
-    });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 15_000);
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: { "User-Agent": "schoolinfo-mcp/0.1" }, signal: ac.signal });
+    } catch (e: any) {
+      if (e?.name === "AbortError") throw new Error("학교알리미 OpenAPI 응답 시간 초과");
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${url.pathname}`);
     const data = (await res.json()) as ApiResult;
     if (data.resultCode !== "success") {
@@ -77,8 +85,8 @@ export class SchoolInfoClient {
   }): Promise<School[]> {
     const sido = resolveSido(params.sido);
     if (!sido) throw new Error(`알 수 없는 시도: "${params.sido}". 예: 서울특별시, 경기도`);
-    const sgg = resolveSgg(sido.name, params.sgg);
-    if (!sgg)
+    const sggList = resolveSggList(sido.name, params.sgg);
+    if (!sggList.length)
       throw new Error(
         `"${sido.name}"에 없는 시군구: "${params.sgg}". 가능한 값: ${Object.keys(
           REGIONS[sido.name].sgg
@@ -89,15 +97,27 @@ export class SchoolInfoClient {
     const kindCode = SCHOOL_KIND[params.kind];
     if (!kindCode) throw new Error(`알 수 없는 학교급: "${params.kind}"`);
 
-    const data = await this.request("0", {
-      sidoCode: sido.code,
-      sggCode: sgg.code,
-      schulKndCode: kindCode,
-    });
+    // 자치구를 가진 시("포항")는 하위 구 코드를 모두 합산 검색 (시 전체 코드는 0건이라 무해)
+    const merged = new Map<string, School>();
+    let lastErr: Error | null = null;
+    for (const sgg of sggList) {
+      try {
+        const data = await this.request("0", {
+          sidoCode: sido.code,
+          sggCode: sgg.code,
+          schulKndCode: kindCode,
+        });
+        for (const r of data.list) {
+          const s = toSchool(r, sido.code, sgg.code, kindCode);
+          if (s.schoolCode) merged.set(s.schoolCode, s);
+        }
+      } catch (e: any) {
+        lastErr = e; // "데이터 없음"(시 전체 코드 등)은 무시하고 계속
+      }
+    }
+    if (merged.size === 0 && lastErr) throw lastErr;
 
-    let schools = data.list.map((r) =>
-      toSchool(r, sido.code, sgg.code, kindCode)
-    );
+    let schools = [...merged.values()];
     if (params.name) {
       const q = params.name.replace(/\s/g, "");
       schools = schools.filter((s) => s.name.replace(/\s/g, "").includes(q));

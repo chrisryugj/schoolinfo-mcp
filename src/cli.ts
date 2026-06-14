@@ -14,7 +14,7 @@ import { execFile } from "child_process";
 import { SchoolInfoClient, School } from "./client.js";
 import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
-import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation } from "./evaluation.js";
+import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation, listEvaluationDocs } from "./evaluation.js";
 
 const KINDS = Object.keys(SCHOOL_KIND);
 const STATE_DIR = join(homedir(), ".schoolinfo-mcp");
@@ -86,17 +86,30 @@ async function main() {
         if (!m.length) { console.error(`알 수 없는 항목: ${item}`); process.exit(1); }
         apiType = m[0].code;
       }
-      const r = await c.getDisclosure(school, apiType, year ? Number(year) : undefined);
+      let y: number | undefined;
+      if (year) { y = Number(year); if (!Number.isInteger(y)) { console.error(`잘못된 연도: ${year}`); process.exit(1); } }
+      const r = await c.getDisclosure(school, apiType, y);
       console.log(formatDisclosure(r.name, r.rows, apiType));
       break;
     }
     case "eval": {
-      const [sido, sgg, kind, name, year] = args;
+      const [sido, sgg, kind, name, ...rest] = args;
       requireKind(kind); requireName(name);
+      const all = rest.includes("all");
+      const yearArg = rest.find((a) => /^\d{4}$/.test(a));
+      const year = yearArg ? Number(yearArg) : undefined;
       const c = client();
       const school = await pickSchool(c, sido, sgg, kind as SchoolKindName, name);
       try {
-        const results = await autoFetchEvaluation(school, year ? Number(year) : undefined);
+        // 과목별로 나뉜 학교는 목록 먼저 안내
+        const { docs } = await listEvaluationDocs(school, year);
+        if (docs.length > 1 && !all) {
+          console.log(`📋 ${school.name} 평가계획 파일 ${docs.length}개 (과목별):\n`);
+          docs.forEach((d) => console.log(`  - ${d.filename}${d.sizeKB ? ` (${d.sizeKB}KB)` : ""}`));
+          console.log(`\n전체를 보려면 명령 끝에 'all'을 붙이세요. 예: eval ${sido} ${sgg} ${kind} ${name} all`);
+          break;
+        }
+        const results = await autoFetchEvaluation(school, year, { all });
         for (const r of results) {
           console.log(`\n## 📄 ${r.filename} (${r.fileType})\n`);
           if (r.evaluationSections.length) {
@@ -108,7 +121,7 @@ async function main() {
         }
       } catch (e: any) {
         console.error(`⚠️ 자동 조회 실패: ${e.message}\n`);
-        console.log(evaluationGuide(school, year ? Number(year) : undefined));
+        console.log(evaluationGuide(school, year));
       }
       break;
     }

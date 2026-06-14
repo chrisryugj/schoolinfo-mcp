@@ -10,14 +10,57 @@ import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide } from "./eva
 import { renderPage } from "./web.js";
 
 const PORT = Number(process.env.PORT) || 8080;
+const MAX_NAME_LEN = 40;
+
+// 보안 헤더 (XSS 완화 CSP 포함). marked/DOMPurify는 jsdelivr CDN 사용.
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; " +
+    "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+};
+
+// 간단 IP rate limit (in-memory, 단일 머신 기준) — 분당 60회
+const RL_WINDOW = 60_000;
+const RL_MAX = 60;
+const rlMap = new Map<string, { count: number; reset: number }>();
+function rateLimited(ip: string, now: number): boolean {
+  const e = rlMap.get(ip);
+  if (!e || now > e.reset) {
+    rlMap.set(ip, { count: 1, reset: now + RL_WINDOW });
+    if (rlMap.size > 5000) for (const [k, v] of rlMap) if (now > v.reset) rlMap.delete(k);
+    return false;
+  }
+  e.count++;
+  return e.count > RL_MAX;
+}
+
+function clientIp(req: http.IncomingMessage): string {
+  const xff = req.headers["fly-client-ip"] ?? req.headers["x-forwarded-for"];
+  if (typeof xff === "string") return xff.split(",")[0].trim();
+  return req.socket.remoteAddress ?? "unknown";
+}
+
+/** 공시연도 검증: 정수 + 합리적 범위 */
+function parseYear(raw: string | null): number | undefined {
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 2010 || n > 2100) return undefined;
+  return n;
+}
 
 function json(res: http.ServerResponse, code: number, data: any) {
   const body = JSON.stringify(data);
-  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", ...SECURITY_HEADERS });
   res.end(body);
 }
 
 const server = http.createServer(async (req, res) => {
+  // monotonic-ish clock — Date.now는 rate limit 용도로만
+  const now = Date.now();
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     const q = url.searchParams;
@@ -27,21 +70,28 @@ const server = http.createServer(async (req, res) => {
 
     // 메인 페이지
     if (url.pathname === "/") {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", ...SECURITY_HEADERS });
       return res.end(renderPage(REGIONS, Object.keys(SCHOOL_KIND)));
     }
 
-    // API: 키 확인
+    // API
     if (url.pathname.startsWith("/api/")) {
+      if (rateLimited(clientIp(req), now)) {
+        return json(res, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." });
+      }
       if (!process.env.SCHOOLINFO_API_KEY) {
-        return json(res, 500, { error: "서버에 SCHOOLINFO_API_KEY가 설정되지 않았습니다." });
+        return json(res, 500, { error: "서버 설정 오류입니다." });
       }
       const client = createClient();
-      const sido = q.get("sido") ?? "";
-      const sgg = q.get("sgg") ?? "";
-      const kind = (q.get("kind") ?? "중학교") as SchoolKindName;
-      const name = q.get("name") ?? "";
-      const year = q.get("year") ? Number(q.get("year")) : undefined;
+      const sido = (q.get("sido") ?? "").slice(0, 20);
+      const sgg = (q.get("sgg") ?? "").slice(0, 30);
+      const kindRaw = q.get("kind") ?? "중학교";
+      if (!(kindRaw in SCHOOL_KIND)) {
+        return json(res, 400, { error: "잘못된 학교급입니다." });
+      }
+      const kind = kindRaw as SchoolKindName;
+      const name = (q.get("name") ?? "").slice(0, MAX_NAME_LEN);
+      const year = parseYear(q.get("year"));
 
       // 학교 검색
       if (url.pathname === "/api/search") {
@@ -124,9 +174,11 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { error: "알 수 없는 API" });
     }
 
-    res.writeHead(404).end("Not Found");
+    res.writeHead(404, SECURITY_HEADERS).end("Not Found");
   } catch (e: any) {
-    json(res, 500, { error: e?.message ?? "서버 오류" });
+    // 상세는 서버 로그에만, 사용자에겐 일반 메시지 (정보 노출 방지)
+    console.error("[server error]", e?.message ?? e);
+    json(res, 500, { error: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요." });
   }
 });
 

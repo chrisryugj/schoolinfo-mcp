@@ -19,6 +19,25 @@ export const DISCLOSURE_PORTAL = `${BASE}/ei/ss/pneiss_a03_s0.do`;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 
+/** 외부 요청 타임아웃 (ms) — 학교알리미 지연 시 무한 대기 방지 */
+const FETCH_TIMEOUT = 20_000;
+/** 다운로드/파싱 허용 최대 크기 (50MB) — 메모리/DoS 방어 */
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+
+/** AbortController 기반 타임아웃 fetch */
+async function fetchT(url: string, init: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeout);
+  try {
+    return await fetch(url, { ...init, signal: ac.signal });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("학교알리미 응답이 지연되어 시간 초과되었습니다.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // "교과별(학년별) 교수·학습 및 평가계획에 관한 사항" 공시항목 고정 코드
 // (학교알리미 공시항목 자체의 분류 코드 — 모든 학교 공통)
 const EVAL_ITEM = {
@@ -56,7 +75,7 @@ export async function fetchEvaluationFiles(
     LOAD_TYPE: "single",
   });
 
-  const res = await fetch(`${BASE}/ei/pp/Pneipp_b43_s0p.do`, {
+  const res = await fetchT(`${BASE}/ei/pp/Pneipp_b43_s0p.do`, {
     method: "POST",
     headers: {
       "User-Agent": UA,
@@ -79,22 +98,40 @@ export async function fetchEvaluationFiles(
 
 function parseFileList(html: string): EvaluationFile[] {
   const files: EvaluationFile[] = [];
+  const seen = new Set<string>();
   // <a ... onclick="getEiFile43('5')...">파일명.hwpx(89 KB)</a>
+  // 파일명에 괄호가 있을 수 있으므로 앵커(>)와 종료(<) 사이 전체를 잡고, 크기 표기는 선택적.
   const re =
-    /onclick="[^"]*getEiFile43\('(\d+)'\)[^"]*"[^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*\(([\d.]+)\s*KB\)/gi;
+    /onclick="[^"]*getEiFile43\('(\d+)'\)[^"]*"[^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
-    files.push({ seq: m[1], filename: m[2].trim(), sizeKB: parseFloat(m[3]) });
+    if (seen.has(m[1])) continue;
+    seen.add(m[1]);
+    files.push({ seq: m[1], filename: m[2].trim(), sizeKB: toKB(m[3], m[4]) });
   }
-  // 폴백: 순서 기반 매칭 (구조가 다를 때)
+  // 폴백: 순서 기반 매칭 (onclick과 파일명이 분리된 비표준 구조)
   if (files.length === 0) {
     const seqs = [...html.matchAll(/getEiFile43\('(\d+)'\)/g)].map((x) => x[1]);
-    const names = [...html.matchAll(/([^>\s][^<>]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*\(([\d.]+)\s*KB\)/gi)];
-    seqs.forEach((seq, i) => {
-      if (names[i]) files.push({ seq, filename: names[i][1].trim(), sizeKB: parseFloat(names[i][2]) });
-    });
+    const names = [...html.matchAll(/([^>\s][^<>]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi)];
+    // 개수가 일치할 때만 신뢰 (어긋나면 seq↔파일명 뒤바뀜 위험)
+    if (seqs.length === names.length) {
+      seqs.forEach((seq, i) => {
+        files.push({ seq, filename: names[i][1].trim(), sizeKB: toKB(names[i][2], names[i][3]) });
+      });
+    } else {
+      // 최후 폴백: 파일명 없이 seq만 (다운로드 후 Content-Disposition으로 파일명 확보)
+      seqs.forEach((seq) => { if (!seen.has(seq)) { seen.add(seq); files.push({ seq, filename: `첨부파일_${seq}` }); } });
+    }
   }
   return files;
+}
+
+/** "89", "1,234"(KB) / "1.2"(MB) → KB 숫자 */
+function toKB(num?: string, unit?: string): number | undefined {
+  if (!num) return undefined;
+  const n = parseFloat(num.replace(/,/g, ""));
+  if (!isFinite(n)) return undefined;
+  return /MB/i.test(unit ?? "") ? Math.round(n * 1024) : n;
 }
 
 function parseDownloadParams(
@@ -126,12 +163,17 @@ export async function downloadEvaluationFile(
   downloadParams: Record<string, string>,
   seq: string
 ): Promise<{ buffer: ArrayBuffer; filename: string }> {
+  if (!/^\d+$/.test(seq)) throw new Error("잘못된 파일 식별자입니다.");
   const qs = new URLSearchParams({ ...downloadParams, FILE_SEQ: seq });
-  const res = await fetch(`${BASE}/servlets/EiFileDownLoad.do?${qs}`, {
+  const res = await fetchT(`${BASE}/servlets/EiFileDownLoad.do?${qs}`, {
     headers: { "User-Agent": UA, Referer: `${BASE}/ei/pp/Pneipp_b43_s0p.do` },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} — 파일 다운로드 실패`);
+  // 크기 상한 — Content-Length 선검사 + 실제 바이트 재확인
+  const declared = Number(res.headers.get("content-length") ?? "0");
+  if (declared > MAX_DOWNLOAD_BYTES) throw new Error("파일이 너무 큽니다 (50MB 초과).");
   const buffer = await res.arrayBuffer();
+  if (buffer.byteLength > MAX_DOWNLOAD_BYTES) throw new Error("파일이 너무 큽니다 (50MB 초과).");
   // Content-Disposition에서 파일명 (RFC URL-encoded)
   let filename = `evaluation_${seq}`;
   const cd = res.headers.get("content-disposition") ?? "";
@@ -179,7 +221,10 @@ export async function fetchEvaluationBySeq(
   file: EvaluationFile
 ): Promise<EvaluationResult> {
   const { buffer, filename } = await downloadEvaluationFile(downloadParams, file.seq);
-  const parsed = await parse(buffer, { filePath: filename });
+  // filePath를 넘기지 않는다: 다운로드 파일명은 디스크에 없는 가짜 경로라
+  // kordoc의 배포용 HWP COM 폴백이 존재하지 않는 파일을 열려 시도할 수 있음.
+  // 포맷은 매직바이트로 자동 감지되므로 ArrayBuffer만으로 충분.
+  const parsed = await parse(buffer);
   const markdown = parsed.success ? parsed.markdown ?? "" : "";
   return {
     filename: filename || file.filename,
@@ -201,13 +246,24 @@ export async function autoFetchEvaluation(
   opts: { all?: boolean; seq?: string } = {}
 ): Promise<EvaluationResult[]> {
   const { docs, downloadParams } = await listEvaluationDocs(school, year);
-  let targets = docs;
-  if (opts.seq) targets = docs.filter((d) => d.seq === opts.seq);
-  else if (!opts.all) targets = docs.slice(0, 1);
 
-  const results: EvaluationResult[] = [];
-  for (const f of targets) results.push(await fetchEvaluationBySeq(downloadParams, f));
-  return results;
+  if (opts.seq) {
+    const f = docs.find((d) => d.seq === opts.seq);
+    return f ? [await fetchEvaluationBySeq(downloadParams, f)] : [];
+  }
+  if (opts.all) {
+    const results: EvaluationResult[] = [];
+    for (const f of docs) results.push(await fetchEvaluationBySeq(downloadParams, f));
+    return results;
+  }
+  // 기본: 우선순위대로 시도하되, 이미지 PDF 등으로 내용이 빈약하면 다음 파일로 폴백
+  let best: EvaluationResult | null = null;
+  for (const f of docs.slice(0, 6)) {
+    const r = await fetchEvaluationBySeq(downloadParams, f);
+    if (r.markdown.trim().length >= 200) return [r];
+    if (!best) best = r;
+  }
+  return best ? [best] : [];
 }
 
 /** 파일명 기반 수행평가 관련성 점수 (낮을수록 우선) */

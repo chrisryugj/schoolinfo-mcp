@@ -18,6 +18,7 @@ import {
   evaluationGuide,
   parseEvaluationDocument,
   autoFetchEvaluation,
+  listEvaluationDocs,
 } from "./evaluation.js";
 
 const KINDS = Object.keys(SCHOOL_KIND) as [SchoolKindName, ...SchoolKindName[]];
@@ -171,16 +172,29 @@ server.tool(
     kind: z.enum(KINDS),
     name: z.string().describe("학교명"),
     year: z.number().optional().describe("공시연도 (기본: 올해)"),
+    subject: z.string().optional().describe("과목/파일명 키워드 (과목별로 나뉜 학교에서 특정 과목 선택)"),
+    all: z.boolean().optional().describe("true면 전체 과목 파일을 모두 조회"),
     full: z.boolean().optional().describe("true면 전체 문서, 기본은 수행평가 섹션 위주"),
   },
-  async ({ sido, sgg, kind, name, year, full }) => {
+  async ({ sido, sgg, kind, name, year, subject, all, full }) => {
     try {
       const client = getClient();
       const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
       if (many) return ok(`여러 학교가 검색됨:\n` + many.map((s) => `- ${s.name}`).join("\n"));
       if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
 
-      const results = await autoFetchEvaluation(school, year);
+      // 과목별로 나뉜 학교는 목록을 먼저 안내 (subject/all 미지정 시)
+      const { docs } = await listEvaluationDocs(school, year);
+      if (docs.length > 1 && !subject && !all) {
+        const lines = docs.map((d) => `- ${d.filename}${d.sizeKB ? ` (${d.sizeKB}KB)` : ""}`);
+        return ok(
+          `# ${school.name} — 평가계획 파일이 ${docs.length}개 있습니다 (과목별)\n\n` +
+            lines.join("\n") +
+            `\n\n특정 과목은 subject="국어"처럼, 전체는 all=true로 다시 요청하세요.`
+        );
+      }
+      const seq = subject ? docs.find((d) => d.filename.includes(subject))?.seq : undefined;
+      const results = await autoFetchEvaluation(school, year, { all: !!all, seq });
       const parts: string[] = [`# ${school.name} — 교수·학습 및 평가 운영 계획\n`];
       for (const r of results) {
         parts.push(`## 📄 ${r.filename} (${r.fileType})\n`);

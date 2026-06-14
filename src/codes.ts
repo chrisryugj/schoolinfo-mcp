@@ -92,28 +92,68 @@ const SIDO_ALIAS: Record<string, string> = {
 /** 시도명 정규화 — "서울"·"충북"·"강원도" 같은 약칭/구명칭 허용 */
 export function resolveSido(input: string): { name: string; code: string } | null {
   const t = input.trim();
+  if (!t) return null;
   // 1) 정확 매칭
   if (REGIONS[t]) return { name: t, code: REGIONS[t].code };
   // 2) 약칭 테이블
   const alias = SIDO_ALIAS[t];
   if (alias && REGIONS[alias]) return { name: alias, code: REGIONS[alias].code };
-  // 3) 접두/축약 휴리스틱
-  for (const [name, info] of Object.entries(REGIONS)) {
-    const bare = name.replace(/(특별시|광역시|특별자치시|특별자치도|도)$/, "");
-    if (name.startsWith(t) || t.startsWith(bare)) return { name, code: info.code };
-  }
+  // 3) 접두 매칭 — 후보가 정확히 1개일 때만 채택 (모호하면 null로 오선택 방지)
+  const cands = Object.entries(REGIONS).filter(([name]) => name.startsWith(t));
+  if (cands.length === 1) return { name: cands[0][0], code: cands[0][1].code };
   return null;
 }
 
-/** 시도 내 시군구명 정규화 — "강남" → "강남구" */
+/** 시도 내 시군구명 정규화 — "강남"→"강남구", "성남"→"성남시"(시 전체 우선) */
 export function resolveSgg(sidoName: string, input: string): { name: string; code: string } | null {
   const region = REGIONS[sidoName];
   if (!region) return null;
   const t = input.trim();
-  for (const [name, code] of Object.entries(region.sgg)) {
-    if (name === t || name.startsWith(t) || name.replace(/(시|군|구)$/, "") === t) {
-      return { name, code };
-    }
+  if (!t) return null;
+  const sgg = region.sgg;
+  // 1) 정확 매칭
+  if (sgg[t]) return { name: t, code: sgg[t] };
+  // 2) 접미사 완성 — "성남"→"성남시", "강남"→"강남구"
+  for (const suf of ["시", "군", "구"]) {
+    if (sgg[t + suf]) return { name: t + suf, code: sgg[t + suf] };
   }
+  // 3) 접두 매칭 — 가장 짧은 이름 우선 (예: "성남시" < "성남시 분당구").
+  //    단, 동률(여러 구만 존재)이면 모호하므로 첫 후보 반환하되 사용자에게 노출되도록 호출부에서 처리.
+  const cands = Object.entries(sgg)
+    .filter(([name]) => name.startsWith(t))
+    .sort((a, b) => a[0].length - b[0].length);
+  if (cands.length) return { name: cands[0][0], code: cands[0][1] };
   return null;
+}
+
+/**
+ * 시군구 입력 → 검색할 코드 목록.
+ * 학교알리미는 **자치구 단위로만** 학교를 검색할 수 있어, "포항"/"성남"처럼
+ * 자치구를 가진 시를 입력하면 시 전체 코드로는 0건이 나온다.
+ * 따라서 정확매칭이 아니면 하위 구를 모두 포함해 합산 검색한다.
+ */
+export function resolveSggList(sidoName: string, input: string): { name: string; code: string }[] {
+  const region = REGIONS[sidoName];
+  if (!region) return [];
+  const t = input.trim();
+  if (!t) return [];
+  const sgg = region.sgg;
+  // 1) 정확 매칭 (강남구, 수원시 장안구 등) → 단일
+  if (sgg[t]) return [{ name: t, code: sgg[t] }];
+  // 2) 접미사 완성이 자치구("강남"→"강남구")면 단일, "시"면 하위 구까지 합산
+  if (sgg[t + "구"]) return [{ name: t + "구", code: sgg[t + "구"] }];
+  if (sgg[t + "군"]) return [{ name: t + "군", code: sgg[t + "군"] }];
+  // 3) 접두 매칭 전부 (포항→포항시+포항시 남구+포항시 북구). 시 전체 코드는 0건이라 무해.
+  const cands = Object.entries(sgg)
+    .filter(([name]) => name.startsWith(t))
+    .map(([name, code]) => ({ name, code }));
+  return cands;
+}
+
+/** 시군구 부분입력에 대한 모든 후보 (모호성 안내용) */
+export function sggCandidates(sidoName: string, input: string): string[] {
+  const region = REGIONS[sidoName];
+  if (!region) return [];
+  const t = input.trim();
+  return Object.keys(region.sgg).filter((name) => name === t || name.startsWith(t));
 }

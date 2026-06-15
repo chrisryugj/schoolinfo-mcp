@@ -21,7 +21,8 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "no-referrer",
   "Content-Security-Policy":
     "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " +
-    "style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; " +
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; " +
+    "img-src 'self' data: https:; connect-src 'self'; " +
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 };
 

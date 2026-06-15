@@ -363,6 +363,72 @@ export interface GradeOverview {
   label: string;        // 화면 라벨 (예: "1학년")
   subjects: string[];   // 이 종합표에서 추출된 교과 (등장 순서)
   tableHtml: string;    // 종합표 HTML (각 교과 행에 data-subject 주입됨)
+  details?: Record<string, string>; // 교과명 → 상세 평가표(성취기준 포함) HTML
+}
+
+/** 성취기준 코드 약자 → 교과 (캡션이 과목을 안 줄 때 보조 판별) */
+const CRITERIA_ABBR: Record<string, string> = {
+  국: "국어", 도: "도덕", 사: "사회", 역: "역사", 수: "수학", 과: "과학",
+  영: "영어", 체: "체육", 음: "음악", 미: "미술", 정: "정보", 한: "한문", 한문: "한문",
+  기가: "기술ㆍ가정", 가정: "기술ㆍ가정", 기술: "기술ㆍ가정", 일: "일본어", 중: "중국어",
+};
+
+/** 헤더에 '성취기준' 컬럼이 있는 과목별 상세 평가표인지 */
+function isSubjectDetailTable(tableHtml: string): boolean {
+  const firstRow = (tableHtml.match(/<tr[^>]*>([\s\S]*?)<\/tr>/i) || [])[1] || "";
+  return /성취\s*기준/.test(plainText(firstRow));
+}
+
+/** 텍스트에서 교과명 탐지 (긴 이름 우선) */
+function subjectInText(text: string): string | null {
+  const c = text.replace(/\s/g, "").replace(/·/g, "ㆍ");
+  for (const s of SUBJECTS) {
+    const k = s.replace(/\s/g, "").replace(/·/g, "ㆍ");
+    if (c.includes(k)) return s;
+  }
+  return null;
+}
+
+/** 성취기준 코드([9국05-01]) 약자 최빈값으로 교과 추정 */
+function subjectByCode(tableHtml: string): string | null {
+  const codes = [...tableHtml.matchAll(/\[9\s*([가-힣]{1,3})\d/g)].map((m) => m[1]);
+  const freq: Record<string, number> = {};
+  for (const c of codes) {
+    const s = CRITERIA_ABBR[c];
+    if (s) freq[s] = (freq[s] || 0) + 1;
+  }
+  const top = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+  return top ? top[0] : null;
+}
+
+/**
+ * 과목별 상세 평가표(성취기준 포함)를 학년/과목에 매핑해 grades[].details에 담는다.
+ * 통합 문서는 "N학년 과목 N학기" 캡션을 선언하고 이후 표가 그에 귀속되는 구조라
+ * 순차 상태(현재 학년/과목)를 유지하되, 표 내용의 성취기준 코드로 과목을 보정한다.
+ * 오매핑 방지: 종합표에서 이미 확인된 학년·과목 조합에만 붙인다.
+ */
+function attachSubjectDetails(markdown: string, grades: GradeOverview[]): void {
+  const byGrade = new Map<number, GradeOverview>();
+  for (const g of grades) if (g.grade != null) byGrade.set(g.grade, g);
+  if (!byGrade.size) return;
+  let curGrade: number | null = null;
+  let curSubject: string | null = null;
+  let lastIdx = 0;
+  for (const { html, index } of topLevelTables(markdown)) {
+    const between = plainText(markdown.slice(lastIdx, index));
+    lastIdx = index + html.length;
+    const gm = [...between.matchAll(/([1-6])\s*학년/g)];
+    if (gm.length) curGrade = Number(gm[gm.length - 1][1]);
+    const capPart = between.split(/운영\s*계획/).pop() || between;
+    const subj = subjectInText(capPart.slice(-50)) || subjectInText(between.slice(-50));
+    if (subj) curSubject = subj;
+    if (!isSubjectDetailTable(html)) continue;
+    const useSubj = subjectByCode(html) || curSubject;
+    if (curGrade == null || !useSubj) continue;
+    const g = byGrade.get(curGrade);
+    if (!g || !g.subjects.includes(useSubj)) continue;
+    (g.details ??= {})[useSubj] = (g.details[useSubj] || "") + html;
+  }
 }
 
 export interface StructuredEvaluation {
@@ -556,6 +622,8 @@ export function structureEvaluation(markdown: string): StructuredEvaluation | nu
     if (!prev || g.subjects.length > prev.subjects.length) byGrade.set(key, g);
   }
   const deduped = [...byGrade.values()].sort((a, b) => (a.grade ?? 99) - (b.grade ?? 99));
+  // 과목별 상세 평가표(성취기준)를 학년/과목에 매핑해 details에 부착
+  attachSubjectDetails(markdown, deduped);
   return { grades: deduped, allSubjects: [...subjUnion] };
 }
 

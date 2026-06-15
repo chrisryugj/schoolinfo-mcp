@@ -281,6 +281,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center;}
   .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
   .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:rgba(255,255,255,.03); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:nowrap; font-family:inherit;}
+  .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:#fff; letter-spacing:-0.01em;}
   .fchip:hover{color:#fff; background:rgba(255,255,255,.07);}
   .fchip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent);}
   .fchip.sub[aria-pressed="true"]{background:rgba(41,151,255,.18); color:var(--blue); border-color:rgba(41,151,255,.45);}
@@ -597,6 +598,21 @@ function renderStructured(ctx, d){
       r.style.display = (subj==='전체' || r.getAttribute('data-subject')===subj) ? '' : 'none';
     });
   };
+  // 선택한 과목의 상세 평가표(성취기준·평가기준)를 종합표 아래에 펼친다
+  const drawDetail = () => {
+    const box = card.querySelector('#stDetail');
+    if (!box) return;
+    if (subj === '전체'){ box.innerHTML = ''; return; }
+    const html = (grades[gi].details || {})[subj];
+    if (!html){
+      box.innerHTML = '<p class="state" style="margin-top:16px">' + h(subj) + ' 상세 평가표(성취기준)는 원본 파일에서 확인해 주세요.</p>';
+      return;
+    }
+    box.innerHTML = '<div class="detail-head">📑 ' + h(subj) + ' 성취기준·평가기준</div>'
+      + '<div class="tablewrap"><div class="out" id="stDetailTbl">' + safeHtml(html) + '</div></div>'
+      + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>';
+    box.querySelectorAll('#stDetailTbl table').forEach(t => t.classList.add('wide'));
+  };
   const draw = () => {
     card.innerHTML = head
       + '<div class="filters">'
@@ -604,11 +620,13 @@ function renderStructured(ctx, d){
       + '<div class="frow"><span class="flabel">과목</span>'+subjChips()+'</div>'
       + '</div>'
       + '<div class="tablewrap"><div class="out" id="stTable"></div></div>'
-      + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>';
+      + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>'
+      + '<div id="stDetail"></div>';
     const out = card.querySelector('#stTable');
     out.innerHTML = safeHtml(grades[gi].tableHtml);
     const t = out.querySelector('table');
     if (t){ t.classList.add('wide'); applyFilter(t); }
+    drawDetail();
   };
   card.addEventListener('click', (e) => {
     const gb = e.target.closest('[data-g]');
@@ -618,6 +636,7 @@ function renderStructured(ctx, d){
       subj = sb.getAttribute('data-s');
       card.querySelectorAll('[data-s]').forEach(x => x.setAttribute('aria-pressed', String(x.getAttribute('data-s')===subj)));
       const t = card.querySelector('#stTable table'); if (t) applyFilter(t);
+      drawDetail();
     }
   });
   draw();

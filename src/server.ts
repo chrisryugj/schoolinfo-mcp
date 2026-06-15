@@ -4,6 +4,7 @@
 // 학부모가 브라우저에서 학교 검색 → 공시/수행평가 계획을 바로 확인.
 
 import http from "http";
+import { readFileSync } from "fs";
 import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, MAX_ALL_DOCS } from "./evaluation.js";
@@ -13,6 +14,14 @@ import { buildMcpServer } from "./mcpServer.js";
 
 const PORT = Number(process.env.PORT) || 8080;
 const MAX_NAME_LEN = 40;
+
+// OG 공유 이미지 (카톡/오픈그래프) — 빌드와 함께 배포되는 정적 PNG (dist 기준 ../og.png)
+let OG_IMAGE: Buffer | null = null;
+try {
+  OG_IMAGE = readFileSync(new URL("../og.png", import.meta.url));
+} catch {
+  OG_IMAGE = null;
+}
 
 // 보안 헤더 (XSS 완화 CSP 포함). marked/DOMPurify는 jsdelivr CDN 사용.
 const SECURITY_HEADERS: Record<string, string> = {
@@ -95,6 +104,17 @@ const server = http.createServer(async (req, res) => {
 
     // 헬스체크
     if (url.pathname === "/health") return json(res, 200, { ok: true });
+
+    // OG 공유 이미지 (카톡 미리보기)
+    if (url.pathname === "/og.png") {
+      if (!OG_IMAGE) return res.writeHead(404, SECURITY_HEADERS).end("Not Found");
+      res.writeHead(200, {
+        "Content-Type": "image/png",
+        "Cache-Control": "public, max-age=86400",
+        ...SECURITY_HEADERS,
+      });
+      return res.end(OG_IMAGE);
+    }
 
     // 원격 MCP 엔드포인트 (Streamable HTTP, stateless) — 설치/키 없이 Claude·Cursor에서 연결
     //  인증키는 서버(fly secret)에 있으므로 접속자는 키가 필요 없다.

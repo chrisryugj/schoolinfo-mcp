@@ -44,6 +44,19 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <meta name="theme-color" content="#000000"/>
 <title>우리 학교 알리미 — 수행평가·급식·공시정보를 학교 이름 하나로</title>
 <meta name="description" content="전국 초·중·고의 수행평가 계획·급식·학생수·동아리까지. 학교 이름만 입력하면 학교알리미 공시정보를 한 번에. 설치·가입 없이."/>
+<meta property="og:type" content="website"/>
+<meta property="og:site_name" content="우리 학교 알리미"/>
+<meta property="og:locale" content="ko_KR"/>
+<meta property="og:url" content="https://school-mcp.fly.dev/"/>
+<meta property="og:title" content="우리 학교 알리미 — 학교 이름 하나로 수행평가·급식·공시"/>
+<meta property="og:description" content="전국 초·중·고 공시정보 35종 + 수행평가 계획까지. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<meta property="og:image" content="https://school-mcp.fly.dev/og.png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="우리 학교 알리미"/>
+<meta name="twitter:description" content="학교 이름 하나로 수행평가·급식·공시정보를 한 번에."/>
+<meta name="twitter:image" content="https://school-mcp.fly.dev/og.png"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -268,7 +281,13 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== Footer ===== */
   footer{max-width:760px; margin:0 auto; padding:48px 20px calc(env(safe-area-inset-bottom) + 44px); text-align:center; border-top:1px solid var(--hair); margin-top:36px;}
   footer .f-line{font-family:var(--mono); font-size:11.5px; letter-spacing:.03em; color:var(--mut); line-height:1.9;}
-  footer .f-sig{margin-top:6px; font-family:var(--font); font-size:13px; color:var(--ink-dim);}
+  footer .f-actions{margin-top:11px; display:flex; justify-content:center;}
+  .copy-mcp{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:12px; letter-spacing:.02em; color:var(--ink-dim);
+    background:rgba(255,255,255,.03); border:1px solid var(--hair-strong); border-radius:999px; padding:7px 14px; cursor:pointer; transition:.2s; -webkit-tap-highlight-color:transparent;}
+  .copy-mcp:hover{color:#fff; background:rgba(41,151,255,.1); border-color:rgba(41,151,255,.4);}
+  .copy-mcp .cm-ic{opacity:.7;}
+  .copy-mcp.copied{color:var(--green); border-color:rgba(48,209,88,.45); background:rgba(48,209,88,.1);}
+  footer .f-sig{margin-top:14px; font-family:var(--font); font-size:13px; color:var(--ink-dim);}
   footer .f-sig a{color:var(--ink); border-bottom:1px solid var(--hair-strong); padding-bottom:1px;}
   footer .f-sig a:hover{color:#fff; border-color:var(--ink);}
   footer .counter{margin-top:18px; display:flex; justify-content:center;}
@@ -346,7 +365,13 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 </main>
 
 <footer>
-  <div class="f-line">데이터 출처 · 학교알리미(schoolinfo.go.kr) · 공공누리 제1유형<br/>hwp 변환 · kordoc &nbsp;|&nbsp; 원격 MCP · /mcp</div>
+  <div class="f-line">데이터 출처 · 학교알리미(schoolinfo.go.kr) · 공공누리 제1유형<br/>hwp 변환 · kordoc</div>
+  <div class="f-actions">
+    <button type="button" id="copyMcp" class="copy-mcp" title="클릭하면 원격 MCP 주소 복사">
+      <span class="cm-text">원격 MCP · /mcp</span>
+      <svg class="cm-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+    </button>
+  </div>
   <div class="f-sig">만든 사람 · <a href="https://chris.gomdori.app" target="_blank" rel="noopener noreferrer">딴짓하는 류주임</a></div>
   <div class="counter">
     <a href="https://hitscounter.dev/history?url=https://school-mcp.fly.dev" target="_blank" rel="noopener noreferrer" aria-label="방문 통계 보기">
@@ -396,7 +421,10 @@ function schoolCard(ctx, opts){
   const tag = opts.tag ? '<span class="tag">'+h(opts.tag)+'</span>' : '';
   const hp = safeUrl(opts.homepage);
   const d = 'data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'"';
-  const hpBtn = hp ? '<a class="btn btn-line btn-sm" href="'+h(hp)+'" target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>' : '';
+  // 홈페이지: 지역검색은 주소를 이미 알아 바로 링크. 이름검색은 데이터에 없어 클릭 시 해석(resolveHome).
+  const hpBtn = hp
+    ? '<a class="btn btn-line btn-sm" href="'+h(hp)+'" target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
+    : (opts.resolveHome && ctx.kind ? '<button class="btn btn-line btn-sm" data-act="home" '+d+'>🌐 홈페이지</button>' : '');
   // 학교급(kind)을 모르면 공시/평가계획 조회가 불가하므로 버튼 대신 안내 (지역검색 유도)
   const acts = ctx.kind
     ? '<div class="acts">'
@@ -425,7 +453,7 @@ async function findByName(){
     if (!list.length){ $('results').innerHTML = info('검색 결과가 없습니다. 이름을 더 정확히 입력해 보세요.'); return; }
     const cards = list.map(s => schoolCard(
       {sido:s.sido, sgg:s.sgg, kind:s.kind, name:s.name},
-      {tag:s.kind, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
+      {tag:s.kind, resolveHome:true, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
   }catch(e){ $('results').innerHTML = info('검색 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
@@ -463,7 +491,25 @@ document.addEventListener('click', (e) => {
   else if (act === 'digest'){ rememberFrom(b); loadDigest(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
+  else if (act === 'home'){ openHomepage(ctxOf(b), b); }
 });
+
+/* 이름검색 결과의 홈페이지: 클릭 시에만 해석(검색 시 N번 호출 방지). 팝업차단 회피 위해 빈 창 먼저 연다 */
+async function openHomepage(ctx, btn){
+  const w = window.open('', '_blank', 'noopener');
+  const prev = btn ? btn.textContent : '';
+  if (btn) btn.textContent = '🌐 여는 중…';
+  try{
+    const r = await fetch('/api/search?'+qp(ctx));
+    const d = await r.json();
+    const list = d.schools||[];
+    const s = list.find(x => x.name===ctx.name) || list[0];
+    const hp = s && safeUrl(s.homepage);
+    if (hp){ if (w) w.location = hp; else window.open(hp, '_blank', 'noopener'); }
+    else { if (w) w.close(); if (btn){ btn.textContent='홈페이지 없음'; setTimeout(()=>{ btn.textContent=prev; }, 1500); return; } }
+  }catch(e){ if (w) w.close(); }
+  if (btn) btn.textContent = prev;
+}
 
 function qp(ctx, extra){ return new URLSearchParams(Object.assign({sido:ctx.sido, sgg:ctx.sgg, kind:ctx.kind, name:ctx.name}, extra||{})); }
 function dlUrl(ctx, seq, year){ const p = qp(ctx, {seq:String(seq)}); if(year) p.set('year', String(year)); return '/api/download?'+p; }
@@ -580,12 +626,27 @@ $('recent').addEventListener('click', (e) => {
   const chip = e.target.closest('[data-recent]');
   if (!chip) return;
   const x = loadRecent()[+chip.getAttribute('data-recent')]; if(!x) return;
-  $('results').innerHTML = '<div class="card">'+schoolCard(x, {tag:x.kind, meta:h([x.sido,x.sgg].filter(Boolean).join(' '))})+'</div>';
+  $('results').innerHTML = '<div class="card">'+schoolCard(x, {tag:x.kind, resolveHome:true, meta:h([x.sido,x.sgg].filter(Boolean).join(' '))})+'</div>';
   $('output').innerHTML='';
   $('results').scrollIntoView({behavior:'smooth', block:'start'});
 });
 
 renderRecent();
+
+/* ── 원격 MCP 주소 복사 ── */
+(function(){
+  const btn = $('copyMcp'); if(!btn) return;
+  const url = location.origin + '/mcp';
+  btn.addEventListener('click', async () => {
+    let ok = false;
+    try{ await navigator.clipboard.writeText(url); ok = true; }
+    catch(_){ try{ const ta=document.createElement('textarea'); ta.value=url; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ok=document.execCommand('copy'); ta.remove(); }catch(__){} }
+    const t = btn.querySelector('.cm-text'); const prev = t ? t.textContent : '';
+    if (t) t.textContent = ok ? '주소 복사됨 ✓' : url;
+    btn.classList.toggle('copied', ok);
+    setTimeout(()=>{ if(t) t.textContent = prev; btn.classList.remove('copied'); }, 1800);
+  });
+})();
 
 /* ── reveal on scroll ── */
 try{

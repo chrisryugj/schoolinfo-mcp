@@ -282,6 +282,10 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
   .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:rgba(255,255,255,.03); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:nowrap; font-family:inherit;}
   .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:#fff; letter-spacing:-0.01em;}
+  table.sched{width:100%; border-collapse:collapse;}
+  table.sched td{padding:8px 4px; border-bottom:1px solid var(--hair); font-size:14px; vertical-align:top; line-height:1.45;}
+  table.sched td:first-child{color:var(--ink-dim); white-space:nowrap; padding-right:14px; width:1%; font-variant-numeric:tabular-nums;}
+  .sched-note{color:var(--mut); font-size:13px;}
   .fchip:hover{color:#fff; background:rgba(255,255,255,.07);}
   .fchip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent);}
   .fchip.sub[aria-pressed="true"]{background:rgba(41,151,255,.18); color:var(--blue); border-color:rgba(41,151,255,.45);}
@@ -444,6 +448,7 @@ function schoolCard(ctx, opts){
     ? '<div class="acts">'
       + '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
       + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
       + hpBtn + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
@@ -503,6 +508,7 @@ document.addEventListener('click', (e) => {
   const act = b.getAttribute('data-act');
   if (act === 'eval'){ rememberFrom(b); loadEval(ctxOf(b)); }
   else if (act === 'digest'){ rememberFrom(b); loadDigest(ctxOf(b)); }
+  else if (act === 'schedule'){ rememberFrom(b); loadSchedule(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
   else if (act === 'home'){ openHomepage(ctxOf(b), b); }
@@ -651,6 +657,38 @@ async function loadAllEval(ctx, year){
     if (d.error) throw new Error(d.error);
     render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year));
   }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+}
+/* ── 학사일정 (NEIS) ── */
+async function loadSchedule(ctx){
+  $('output').innerHTML = spinner('🗓 '+h(ctx.name)+' 학사일정을 가져오는 중…');
+  try{
+    const r = await fetch('/api/schedule?'+qp(ctx));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderSchedule(d);
+  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+}
+function renderSchedule(d){
+  const items = d.items || [];
+  const title = '🗓 '+h(d.school)+' '+(d.year?h(d.year)+'학년도 ':'')+'학사일정';
+  if (!items.length){
+    $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'
+      + '<p class="state">'+h(d.note||'표시할 학사일정이 없습니다.')+'</p></div>';
+    $('output').scrollIntoView({behavior:'smooth', block:'start'});
+    return;
+  }
+  const byMonth = {};
+  for (const it of items){ const m = it.date.slice(0,6); (byMonth[m] = byMonth[m] || []).push(it); }
+  let html = '';
+  for (const m of Object.keys(byMonth).sort()){
+    const rows = byMonth[m].map(it =>
+      '<tr><td>'+(+it.date.slice(6,8))+'일</td><td>'+h(it.name)
+      + (it.content ? ' <span class="sched-note">'+h(it.content)+'</span>' : '')+'</td></tr>').join('');
+    html += '<div class="detail-head">'+(+m.slice(4,6))+'월</div>'
+      + '<div class="out"><table class="sched"><tbody>'+rows+'</tbody></table></div>';
+  }
+  $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'+html+'</div>';
+  $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 /* ── 핵심 공시 ── */
 async function loadDigest(ctx){

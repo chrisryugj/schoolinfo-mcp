@@ -9,6 +9,7 @@ import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS,
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
 import type { School } from "./client.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey } from "./neis.js";
 import { renderPage } from "./web.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
@@ -259,6 +260,24 @@ const server = http.createServer(async (req, res) => {
           ...digest.map((d) => formatDisclosure(d.name, d.rows, d.apiType)),
         ].join("\n");
         return json(res, 200, { school: school.name, markdown: md });
+      }
+
+      // 학사일정 (NEIS 교육정보 개방 API — 학교알리미 공시엔 없는 항목)
+      if (url.pathname === "/api/schedule") {
+        const school = await resolve();
+        if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
+        if (!hasNeisKey()) {
+          return json(res, 200, { school: school.name, items: [], note: "학사일정은 NEIS API 키 설정 후 제공됩니다." });
+        }
+        try {
+          const ns = await findNeisSchool(school.name, sido);
+          if (!ns) return json(res, 200, { school: school.name, items: [], note: "NEIS에서 해당 학교를 찾지 못했습니다." });
+          const y = year ?? new Date().getFullYear();
+          const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}0228`);
+          return json(res, 200, { school: school.name, year: y, items });
+        } catch (e: any) {
+          return json(res, 200, { school: school.name, items: [], note: `학사일정 조회 실패: ${e.message}` });
+        }
       }
 
       // 수행평가/평가계획 자동 조회

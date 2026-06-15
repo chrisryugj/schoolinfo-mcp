@@ -42,20 +42,20 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="theme-color" content="#000000"/>
-<title>우리 학교 알리미 — 수행평가·급식·공시정보를 학교 이름 하나로</title>
-<meta name="description" content="전국 초·중·고의 수행평가 계획·급식·학생수·동아리까지. 학교 이름만 입력하면 학교알리미 공시정보를 한 번에. 설치·가입 없이."/>
+<title>우리 학교 알리미 — 매일 급식·수행평가·학사일정을 학교 이름 하나로</title>
+<meta name="description" content="전국 초·중·고의 매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day까지. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="우리 학교 알리미"/>
 <meta property="og:locale" content="ko_KR"/>
 <meta property="og:url" content="https://school-mcp.fly.dev/"/>
-<meta property="og:title" content="우리 학교 알리미 — 학교 이름 하나로 수행평가·급식·공시"/>
-<meta property="og:description" content="전국 초·중·고 공시정보 35종 + 수행평가 계획까지. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<meta property="og:title" content="우리 학교 알리미 — 학교 이름 하나로 매일 급식·수행평가·학사일정"/>
+<meta property="og:description" content="매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
 <meta property="og:image" content="https://school-mcp.fly.dev/og.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="우리 학교 알리미"/>
-<meta name="twitter:description" content="학교 이름 하나로 수행평가·급식·공시정보를 한 번에."/>
+<meta name="twitter:description" content="학교 이름 하나로 매일 급식·수행평가·학사일정을 한 번에."/>
 <meta name="twitter:image" content="https://school-mcp.fly.dev/og.png"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
@@ -302,6 +302,12 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .hl h3{margin:0 0 8px; font-size:20px; font-weight:700; letter-spacing:-0.02em;}
   .hl p{margin:0; color:var(--ink-dim); font-size:14.5px; line-height:1.55;}
   .hl p b{color:#fff;}
+  .hl.green{border-color:rgba(48,209,88,.32); background:linear-gradient(135deg, rgba(48,209,88,.14), rgba(48,209,88,.03));}
+  .hl.green::after{background:radial-gradient(circle, rgba(48,209,88,.22), transparent 70%);}
+  .hl.green .badge{color:var(--green); background:rgba(48,209,88,.16); border-color:rgba(48,209,88,.3);}
+  .hl-feats{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;}
+  .hl-feat{font-size:12.5px; padding:5px 11px; border-radius:999px; border:1px solid rgba(48,209,88,.28); background:rgba(48,209,88,.08); color:var(--green);}
+  .hero-sub b{color:var(--ink); font-weight:600;}
 
   .cat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
   .cat{padding:18px; border-radius:var(--radius-sm); border:1px solid var(--hair); background:rgba(255,255,255,.02); transition:background .25s, border-color .25s, transform .25s;}
@@ -371,9 +377,9 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <main>
   <section class="hero">
     <div class="grid-bg"></div>
-    <span class="eyebrow"><span class="pulse"></span>전국 초·중·고 · 공시정보 35종</span>
-    <h1 class="display"><span class="grad">수행평가 계획부터 급식까지,</span><br/><span class="accent">학교 이름 하나로.</span></h1>
-    <p class="hero-sub">학교알리미에 흩어진 공시정보를, 학교 이름만 입력하면 한 번에. 수행평가 hwp는 표로 변환하고 원본도 그대로 받습니다.</p>
+    <span class="eyebrow"><span class="pulse"></span>전국 초·중·고 · 매일 급식부터 수행평가까지</span>
+    <h1 class="display"><span class="grad">오늘 급식부터 수행평가까지,</span><br/><span class="accent">학교 이름 하나로.</span></h1>
+    <p class="hero-sub"><b>매일 급식</b>은 알레르기까지 걸러 보고, <b>수행평가</b> hwp는 표로 변환하고, <b>시험 D-day</b>와 <b>이번주 일정</b>까지 — 학교에 흩어진 정보를 이름만 입력하면 한 번에.</p>
   </section>
 
   <section class="surface">
@@ -411,7 +417,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <section class="section">
     <span class="chapter-label"><span class="num">35종</span> 무엇을 알 수 있나요</span>
     <h2>학교 이름 하나로,<br/>이만큼 알려드려요.</h2>
-    <p class="lead">학교알리미 OpenAPI 정형 데이터 35종에, 첨부파일로만 공개되는 <b style="color:var(--ink)">수행평가 계획</b>까지 더했습니다.</p>
+    <p class="lead">학교알리미 공시 35종과 첨부파일 속 <b style="color:var(--ink)">수행평가 계획</b>, 여기에 NEIS의 <b style="color:var(--ink)">매일 급식·학사일정</b>까지 묶었습니다.</p>
 
     <article class="hl reveal">
       <span class="badge">이 도구의 핵심</span>
@@ -419,12 +425,19 @@ export function renderPage(regions: Regions, kinds: string[]): string {
       <p>학부모가 가장 궁금해하는 <b>수행평가 주제·평가기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 숨어 있는 이 항목을 <b>자동으로 내려받아 표로 변환</b>하고, 원본 파일도 그대로 드립니다.</p>
     </article>
 
+    <article class="hl green reveal">
+      <span class="badge">매일 쓰는 기능 · NEIS</span>
+      <h3>오늘 급식 + 알레르기 회피 필터</h3>
+      <p>날짜별 <b>급식 식단·칼로리</b>에, 우리 아이가 피해야 할 <b>알레르기(우유·땅콩 등)를 입력하면 위험 메뉴를 ⚠️로</b> 갈라 보여줍니다. 매일 식단은 학교알리미엔 없는 <b>NEIS 전용</b> 정보예요.</p>
+      <div class="hl-feats"><span class="hl-feat">📅 이번주 브리핑</span><span class="hl-feat">🗓 학사일정</span><span class="hl-feat">⏰ 시험·방학 D-day</span></div>
+    </article>
+
     <div class="cat-grid">${catCards}</div>
   </section>
 </main>
 
 <footer>
-  <div class="f-line">데이터 출처 · 학교알리미(schoolinfo.go.kr) · 공공누리 제1유형<br/>hwp 변환 · kordoc</div>
+  <div class="f-line">데이터 출처 · 학교알리미(schoolinfo.go.kr) · NEIS 교육정보 개방(open.neis.go.kr) · 공공누리 제1유형<br/>hwp 변환 · kordoc</div>
   <div class="f-actions">
     <button type="button" id="copyMcp" class="copy-mcp" title="클릭하면 원격 MCP 주소 복사">
       <span class="cm-text">원격 MCP · /mcp</span>

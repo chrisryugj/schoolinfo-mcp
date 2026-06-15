@@ -23,6 +23,10 @@ const UA =
 const FETCH_TIMEOUT = 20_000;
 /** 다운로드/파싱 허용 최대 크기 (50MB) — 메모리/DoS 방어 */
 const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+/** 'all'(전체 과목) 일괄 조회 상한 — 과목 수십 개 학교의 다운로드 폭주/응답 비대화 방지 */
+export const MAX_ALL_DOCS = 20;
+/** 이 길이 미만이면 이미지 PDF 등으로 본문 추출이 사실상 실패한 것으로 간주 */
+const MIN_USEFUL_MD = 200;
 
 /** AbortController 기반 타임아웃 fetch */
 async function fetchT(url: string, init: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
@@ -86,7 +90,9 @@ export async function fetchEvaluationFiles(
     body,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} — 평가계획 항목 조회 실패`);
-  const html = iconv.decode(Buffer.from(await res.arrayBuffer()), "euc-kr");
+  const listBuf = Buffer.from(await res.arrayBuffer());
+  if (listBuf.byteLength > MAX_DOWNLOAD_BYTES) throw new Error("평가계획 목록 응답이 너무 큽니다.");
+  const html = iconv.decode(listBuf, "euc-kr");
 
   // 첨부파일 목록: getEiFile43('N') + 파일명.확장자(NN KB)
   const files = parseFileList(html);
@@ -101,8 +107,9 @@ function parseFileList(html: string): EvaluationFile[] {
   const seen = new Set<string>();
   // <a ... onclick="getEiFile43('5')...">파일명.hwpx(89 KB)</a>
   // 파일명에 괄호가 있을 수 있으므로 앵커(>)와 종료(<) 사이 전체를 잡고, 크기 표기는 선택적.
+  // onclick 따옴표(작은/큰), getEiFile43 인자 공백·따옴표 유무를 모두 허용 (HTML 변형 견고화).
   const re =
-    /onclick="[^"]*getEiFile43\('(\d+)'\)[^"]*"[^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi;
+    /onclick=["'][^"']*getEiFile43\(\s*['"]?(\d+)['"]?\s*\)[^"']*["'][^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
     if (seen.has(m[1])) continue;
@@ -111,7 +118,7 @@ function parseFileList(html: string): EvaluationFile[] {
   }
   // 폴백: 순서 기반 매칭 (onclick과 파일명이 분리된 비표준 구조)
   if (files.length === 0) {
-    const seqs = [...html.matchAll(/getEiFile43\('(\d+)'\)/g)].map((x) => x[1]);
+    const seqs = [...html.matchAll(/getEiFile43\(\s*['"]?(\d+)['"]?\s*\)/g)].map((x) => x[1]);
     const names = [...html.matchAll(/([^>\s][^<>]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi)];
     // 개수가 일치할 때만 신뢰 (어긋나면 seq↔파일명 뒤바뀜 위험)
     if (seqs.length === names.length) {
@@ -141,11 +148,17 @@ function parseDownloadParams(
 ): Record<string, string> {
   const params: Record<string, string> = {};
   const formIdx = html.indexOf("eiFileDownForm");
-  const seg = formIdx >= 0 ? html.slice(formIdx, formIdx + 1200) : html;
-  const re = /name="([A-Z_]+)"[^>]*?value="([^"]*)"/g;
+  // 폼 전체를 </form>까지 잡는다 (고정 1200B 슬라이스는 hidden이 많으면 뒤쪽 필수값을 잘랐음).
+  let seg = html;
+  if (formIdx >= 0) {
+    const end = html.indexOf("</form>", formIdx);
+    seg = html.slice(formIdx, end >= 0 ? end : formIdx + 4096);
+  }
+  const re = /name="([A-Za-z_][A-Za-z0-9_]*)"[^>]*?value="([^"]*)"/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(seg))) {
-    if (!(m[1] in params)) params[m[1]] = m[2];
+    // 값은 코드/연도 등 단순 토큰만 신뢰 (외부 HTML에서 추출 → 방어적 형식 검증)
+    if (!(m[1] in params) && /^[\w.\-]*$/.test(m[2])) params[m[1]] = m[2];
   }
   // 필수값 보강
   params.SHL_IDF_CD ??= shlIdfCd;
@@ -193,6 +206,8 @@ export interface EvaluationResult {
   fileType: string;
   markdown: string;
   evaluationSections: string[];
+  /** 본문 추출이 빈약(이미지 PDF 추정)해 OCR/수동확인이 필요할 때 true */
+  needsOcr?: boolean;
 }
 
 /**
@@ -201,18 +216,24 @@ export interface EvaluationResult {
  */
 export async function listEvaluationDocs(
   school: School,
-  year = new Date().getFullYear()
-): Promise<{ docs: EvaluationFile[]; downloadParams: Record<string, string> }> {
-  const { files, downloadParams } = await fetchEvaluationFiles(school.shlIdfCd, school.name, year);
-  if (!files.length) {
-    throw new Error(
-      `${year}년도 평가계획 첨부파일을 찾지 못했습니다. (연도를 바꿔보거나 ${DISCLOSURE_PORTAL} 직접 확인)`
-    );
+  year?: number
+): Promise<{ docs: EvaluationFile[]; downloadParams: Record<string, string>; year: number }> {
+  // 연도 미지정 시: 올해 → (연초엔 신학년도 평가계획이 아직 미공시이므로) 작년 순으로 자동 폴백.
+  // 사용자가 연도를 명시하면 그 해만 조회 (임의 폴백 금지).
+  const thisYear = new Date().getFullYear();
+  const candidates = year != null ? [year] : [thisYear, thisYear - 1];
+  for (const y of candidates) {
+    const { files, downloadParams } = await fetchEvaluationFiles(school.shlIdfCd, school.name, y);
+    if (files.length) {
+      const docs = files
+        .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
+        .sort((a, b) => evalScore(a.filename) - evalScore(b.filename));
+      return { docs: docs.length ? docs : files, downloadParams, year: y };
+    }
   }
-  const docs = files
-    .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
-    .sort((a, b) => evalScore(a.filename) - evalScore(b.filename));
-  return { docs: docs.length ? docs : files, downloadParams };
+  throw new Error(
+    `${candidates.join("·")}년도 평가계획 첨부파일을 찾지 못했습니다. (다른 연도를 지정하거나 ${DISCLOSURE_PORTAL} 직접 확인)`
+  );
 }
 
 /** 특정 첨부파일을 다운로드 + kordoc 파싱 */
@@ -242,7 +263,7 @@ export async function fetchEvaluationBySeq(
  */
 export async function autoFetchEvaluation(
   school: School,
-  year = new Date().getFullYear(),
+  year?: number,
   opts: { all?: boolean; seq?: string } = {}
 ): Promise<EvaluationResult[]> {
   const { docs, downloadParams } = await listEvaluationDocs(school, year);
@@ -253,16 +274,26 @@ export async function autoFetchEvaluation(
   }
   if (opts.all) {
     const results: EvaluationResult[] = [];
-    for (const f of docs) results.push(await fetchEvaluationBySeq(downloadParams, f));
+    for (const f of docs.slice(0, MAX_ALL_DOCS)) results.push(await fetchEvaluationBySeq(downloadParams, f));
+    if (docs.length > MAX_ALL_DOCS) {
+      results.push({
+        filename: `(이하 ${docs.length - MAX_ALL_DOCS}개 파일 생략)`,
+        fileType: "info",
+        markdown: `> 평가계획 파일이 ${docs.length}개로 많아 앞쪽 ${MAX_ALL_DOCS}개만 표시했습니다. 특정 과목은 과목명으로 지정해 조회하세요.`,
+        evaluationSections: [],
+      });
+    }
     return results;
   }
   // 기본: 우선순위대로 시도하되, 이미지 PDF 등으로 내용이 빈약하면 다음 파일로 폴백
   let best: EvaluationResult | null = null;
   for (const f of docs.slice(0, 6)) {
     const r = await fetchEvaluationBySeq(downloadParams, f);
-    if (r.markdown.trim().length >= 200) return [r];
+    if (r.markdown.trim().length >= MIN_USEFUL_MD) return [r];
     if (!best) best = r;
   }
+  // 모든 후보가 빈약 → 이미지 PDF 추정. 호출부가 수동 안내를 노출하도록 플래그를 싣는다.
+  if (best && best.markdown.trim().length < MIN_USEFUL_MD) best.needsOcr = true;
   return best ? [best] : [];
 }
 

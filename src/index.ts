@@ -3,8 +3,8 @@
 // 학부모가 "내 아이 학교"의 공시정보(평가계획·수행평가·급식·학생수 등)를
 // 쉽게 확인할 수 있도록 학교알리미 OpenAPI + kordoc(hwp 파싱)을 묶는다.
 
-export { SchoolInfoClient } from "./client.js";
-export type { School, ApiResult } from "./client.js";
+export { SchoolInfoClient, searchSchoolsByName } from "./client.js";
+export type { School, ApiResult, SchoolHit } from "./client.js";
 export {
   API_TYPES,
   SCHOOL_KIND,

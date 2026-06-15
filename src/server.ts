@@ -4,10 +4,12 @@
 // 학부모가 브라우저에서 학교 검색 → 공시/수행평가 계획을 바로 확인.
 
 import http from "http";
-import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS } from "./index.js";
+import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
-import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide } from "./evaluation.js";
+import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, MAX_ALL_DOCS } from "./evaluation.js";
 import { renderPage } from "./web.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { buildMcpServer } from "./mcpServer.js";
 
 const PORT = Number(process.env.PORT) || 8080;
 const MAX_NAME_LEN = 40;
@@ -39,8 +41,10 @@ function rateLimited(ip: string, now: number): boolean {
 }
 
 function clientIp(req: http.IncomingMessage): string {
-  const xff = req.headers["fly-client-ip"] ?? req.headers["x-forwarded-for"];
-  if (typeof xff === "string") return xff.split(",")[0].trim();
+  // fly-client-ip는 fly 프록시가 설정하는 실제 클라이언트 IP (클라이언트가 보낸 값은 프록시가 덮어씀)
+  // → 신뢰 가능. x-forwarded-for는 위조 가능하므로 rate-limit 키로 신뢰하지 않는다(우회 방지).
+  const fly = req.headers["fly-client-ip"];
+  if (typeof fly === "string" && fly.trim()) return fly.trim();
   return req.socket.remoteAddress ?? "unknown";
 }
 
@@ -58,6 +62,29 @@ function json(res: http.ServerResponse, code: number, data: any) {
   res.end(body);
 }
 
+/** 다운로드 파일명 정제 — 제어문자/경로구분자 제거 (헤더는 RFC5987 인코딩으로 한 번 더 방어) */
+function sanitizeFilename(name: string): string {
+  return (
+    name
+      .replace(/[\r\n"\\/\x00-\x1f\x7f-\x9f]/g, "")
+      .trim()
+      .slice(0, 200) || "download"
+  );
+}
+
+/** 확장자 → Content-Type (원본 다운로드용) */
+function contentTypeFor(name: string): string {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "pdf": return "application/pdf";
+    case "hwp": return "application/x-hwp";
+    case "hwpx": return "application/haansofthwpx";
+    case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default: return "application/octet-stream";
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   // monotonic-ish clock — Date.now는 rate limit 용도로만
   const now = Date.now();
@@ -67,6 +94,35 @@ const server = http.createServer(async (req, res) => {
 
     // 헬스체크
     if (url.pathname === "/health") return json(res, 200, { ok: true });
+
+    // 원격 MCP 엔드포인트 (Streamable HTTP, stateless) — 설치/키 없이 Claude·Cursor에서 연결
+    //  인증키는 서버(fly secret)에 있으므로 접속자는 키가 필요 없다.
+    //  stateless: 요청마다 새 서버+트랜스포트 (세션 어피니티 불필요 → fly auto-scale 안전).
+    if (url.pathname === "/mcp") {
+      // 웹 기반 MCP 클라이언트(claude.ai 등) 대비 CORS (Origin이 있을 때만 반사, 와일드카드 폴백 없음)
+      if (req.headers.origin) res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, mcp-protocol-version, authorization");
+      res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
+      if (req.method === "OPTIONS") return res.writeHead(204).end();
+      if (rateLimited(clientIp(req), now)) {
+        res.writeHead(429, { "Content-Type": "application/json; charset=utf-8" });
+        return res.end(JSON.stringify({ error: "요청이 너무 많습니다." }));
+      }
+      const mcp = buildMcpServer({ localFiles: false }); // 원격: 서버 로컬파일 도구 제외
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless
+        enableJsonResponse: true,
+      });
+      res.on("close", () => {
+        transport.close();
+        mcp.close();
+      });
+      await mcp.connect(transport);
+      await transport.handleRequest(req, res);
+      return;
+    }
 
     // 메인 페이지
     if (url.pathname === "/") {
@@ -79,6 +135,14 @@ const server = http.createServer(async (req, res) => {
       if (rateLimited(clientIp(req), now)) {
         return json(res, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." });
       }
+
+      // 학교명 전국 검색 — 인증키 불필요 (공시포털 자동완성 재현)
+      if (url.pathname === "/api/searchName") {
+        const word = (q.get("word") ?? "").slice(0, MAX_NAME_LEN);
+        const hits = await searchSchoolsByName(word);
+        return json(res, 200, { schools: hits });
+      }
+
       if (!process.env.SCHOOLINFO_API_KEY) {
         return json(res, 500, { error: "서버 설정 오류입니다." });
       }
@@ -115,6 +179,26 @@ const server = http.createServer(async (req, res) => {
         return list.find((s) => s.name === name) ?? list[0];
       };
 
+      // 원본 평가계획 파일 다운로드 (스트리밍) — 변환 없이 hwp/hwpx/pdf 원본 그대로
+      if (url.pathname === "/api/download") {
+        const seq = q.get("seq") ?? "";
+        if (!/^\d+$/.test(seq)) return json(res, 400, { error: "잘못된 파일 식별자입니다." });
+        const school = await resolve();
+        if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
+        const { docs, downloadParams } = await listEvaluationDocs(school, year);
+        const target = docs.find((d) => d.seq === seq);
+        if (!target) return json(res, 404, { error: "해당 파일을 찾을 수 없습니다." });
+        const { buffer, filename } = await downloadEvaluationFile(downloadParams, seq);
+        const safe = sanitizeFilename(filename || target.filename || `evaluation_${seq}`);
+        res.writeHead(200, {
+          "Content-Type": contentTypeFor(safe),
+          "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safe)}`,
+          "Content-Length": String(buffer.byteLength),
+          ...SECURITY_HEADERS,
+        });
+        return res.end(Buffer.from(buffer));
+      }
+
       // 다이제스트
       if (url.pathname === "/api/digest") {
         const school = await resolve();
@@ -137,29 +221,49 @@ const server = http.createServer(async (req, res) => {
         const seq = q.get("seq");
         const all = q.get("all") === "1";
         try {
-          const { docs, downloadParams } = await listEvaluationDocs(school, year);
+          const { docs, downloadParams, year: docYear } = await listEvaluationDocs(school, year);
           if (!seq && !all && docs.length > 1) {
             // 과목별로 쪼개진 학교 → 목록 반환
             return json(res, 200, {
               school: school.name,
               mode: "list",
+              year: docYear,
               files: docs.map((d) => ({ seq: d.seq, filename: d.filename, sizeKB: d.sizeKB })),
             });
           }
-          const targets = all ? docs : [seq ? docs.find((d) => d.seq === seq) ?? docs[0] : docs[0]];
+          let targets;
+          if (all) {
+            targets = docs.slice(0, MAX_ALL_DOCS);
+          } else if (seq) {
+            // 선택한 과목이 (연도 재해석 등으로) 현재 목록에 없으면 엉뚱한 과목을 보여주지 말고 알린다
+            const found = docs.find((d) => d.seq === seq);
+            if (!found) return json(res, 404, { error: "선택한 과목을 찾을 수 없습니다. 목록을 다시 조회하세요." });
+            targets = [found];
+          } else {
+            targets = [docs[0]];
+          }
           const sections: string[] = [];
           for (const t of targets) {
             const r = await fetchEvaluationBySeq(downloadParams, t);
             const parts = [`## 📄 ${r.filename}`];
             if (r.evaluationSections.length) {
               parts.push(`\n### 🎯 수행평가 관련\n`, r.evaluationSections.join("\n\n---\n\n"));
+            } else if (r.markdown.trim().length < 200) {
+              // 이미지 PDF 등 본문 추출 실패 → 수동 확인 안내
+              parts.push(`\n> ⚠️ 이 파일은 이미지로 된 PDF로 보여 자동 추출이 어렵습니다. 원본을 직접 확인하세요.\n`, evaluationGuide(school, year));
             }
             parts.push(`\n<details><summary>전체 문서 보기</summary>\n\n${r.markdown}\n</details>`);
             sections.push(parts.join("\n"));
           }
+          if (all && docs.length > MAX_ALL_DOCS) {
+            sections.push(`> 평가계획 파일이 ${docs.length}개로 많아 앞쪽 ${MAX_ALL_DOCS}개만 표시했습니다. 특정 과목을 선택해 조회하세요.`);
+          }
           return json(res, 200, {
             school: school.name,
             mode: "doc",
+            year: docYear,
+            // 화면에 표시한 문서들의 원본 다운로드 메타 (변환 실패해도 원본은 받을 수 있게)
+            downloads: targets.map((t) => ({ seq: t.seq, filename: t.filename, sizeKB: t.sizeKB })),
             markdown: sections.join("\n\n"),
           });
         } catch (e: any) {
@@ -178,6 +282,8 @@ const server = http.createServer(async (req, res) => {
   } catch (e: any) {
     // 상세는 서버 로그에만, 사용자에겐 일반 메시지 (정보 노출 방지)
     console.error("[server error]", e?.message ?? e);
+    // 스트리밍(/mcp, /api/download)에서 헤더가 이미 나갔다면 재기록 불가
+    if (res.headersSent) return res.end();
     json(res, 500, { error: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요." });
   }
 });

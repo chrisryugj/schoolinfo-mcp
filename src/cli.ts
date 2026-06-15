@@ -118,6 +118,7 @@ async function main() {
           } else {
             console.log(r.markdown);
           }
+          if (r.needsOcr) console.log(`\n⚠️ 본문 추출이 빈약합니다(이미지 PDF 추정).\n${evaluationGuide(school, year)}`);
         }
       } catch (e: any) {
         console.error(`⚠️ 자동 조회 실패: ${e.message}\n`);

@@ -35,6 +35,15 @@ import labelsData from "./labels.json" with { type: "json" };
 /** apiType별 컬럼ID → 한글 라벨 (OpenAPI_Output.xlsx 추출) */
 const LABELS: Record<string, Record<string, string>> = labelsData as any;
 
+/**
+ * apiType과 무관하게 의미가 고정인 공통 코드 컬럼.
+ * 일부 항목(예: 09 학년별·학급별 학생수)의 labels.json에 누락돼
+ * 영문 코드ID(DGHT_CRSE_SC_CODE 등)가 그대로 화면에 노출되는 것을 막는다.
+ */
+const COMMON_LABELS: Record<string, string> = {
+  DGHT_CRSE_SC_CODE: "주야과정구분",
+};
+
 export function createClient(apiKey = process.env.SCHOOLINFO_API_KEY ?? ""): SchoolInfoClient {
   return new SchoolInfoClient(apiKey);
 }
@@ -82,7 +91,8 @@ export function formatDisclosure(
   const labelMap = apiType ? LABELS[apiType] ?? {} : {};
   // 학교알리미는 학년 컬럼(COL_S1 등)을 학교급 무관하게 재사용하므로
   // "초등부-/중등부-/고등부-" 접두사는 제거해야 실제 학교급 학년과 맞는다.
-  const label = (k: string) => (labelMap[k] ?? k).replace(/^(초등부|중등부|고등부)-/, "");
+  const label = (k: string) =>
+    (labelMap[k] ?? COMMON_LABELS[k] ?? k).replace(/^(초등부|중등부|고등부)-/, "");
   const lines = [`### ${name}`, ``];
   for (const row of rows) {
     // 값 0("학업중단 0명" 등)은 의미 있는 정보이므로 표시. 빈값/null만 숨김.

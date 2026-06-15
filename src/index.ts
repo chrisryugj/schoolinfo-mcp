@@ -119,20 +119,31 @@ export const PARENT_DIGEST: string[] = [
   "94", // 학교폭력 예방교육
 ];
 
+export interface DigestEntry {
+  name: string;
+  rows: Record<string, any>[];
+  apiType: string;
+  /** 조회 실패(인증/네트워크/타임아웃 등)면 true — '데이터 없음'(rows:[])과 구분. check가 거짓 변경알림을 막는 데 사용 */
+  error?: boolean;
+}
+
 export async function getParentDigest(
   client: SchoolInfoClient,
   school: School,
   year?: number
-): Promise<{ name: string; rows: Record<string, any>[]; apiType: string }[]> {
-  const out: { name: string; rows: Record<string, any>[]; apiType: string }[] = [];
-  for (const apiType of PARENT_DIGEST) {
-    if (apiType === "0") continue; // 기본정보는 이미 school에 있음
-    try {
-      const r = await client.getDisclosure(school, apiType, year);
-      out.push({ ...r, apiType });
-    } catch (e) {
-      out.push({ name: API_TYPES[apiType] ?? apiType, rows: [], apiType });
-    }
-  }
-  return out;
+): Promise<DigestEntry[]> {
+  // 기본정보("0")는 이미 school에 있어 제외. 나머지는 독립 조회라 병렬(Promise.all)로 직렬 왕복 제거.
+  const types = PARENT_DIGEST.filter((t) => t !== "0");
+  return Promise.all(
+    types.map(async (apiType): Promise<DigestEntry> => {
+      try {
+        const r = await client.getDisclosure(school, apiType, year);
+        return { ...r, apiType };
+      } catch (e: any) {
+        // 실패를 빈 표로 삼키지 않고 error 플래그로 전파 (표시는 동일, check만 분기)
+        console.error(`[digest] ${apiType} 조회 실패:`, e?.message ?? e);
+        return { name: API_TYPES[apiType] ?? apiType, rows: [], apiType, error: true };
+      }
+    })
+  );
 }

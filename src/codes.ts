@@ -138,8 +138,14 @@ export function resolveSggList(sidoName: string, input: string): { name: string;
   const t = input.trim();
   if (!t) return [];
   const sgg = region.sgg;
-  // 1) 정확 매칭 (강남구, 수원시 장안구 등) → 단일
-  if (sgg[t]) return [{ name: t, code: sgg[t] }];
+  // 1) 정확 매칭 (강남구, 수원시 장안구 등). 단 "포항시"·"성남시"처럼 하위 자치구를 가진
+  //    시는 시 코드만으론 0건이라, 하위 구를 함께 합산해야 검색이 된다.
+  if (sgg[t]) {
+    const children = Object.entries(sgg).filter(([name]) => name.startsWith(t + " "));
+    if (children.length)
+      return [{ name: t, code: sgg[t] }, ...children.map(([name, code]) => ({ name, code }))];
+    return [{ name: t, code: sgg[t] }];
+  }
   // 2) 접미사 완성이 자치구("강남"→"강남구")면 단일, "시"면 하위 구까지 합산
   if (sgg[t + "구"]) return [{ name: t + "구", code: sgg[t + "구"] }];
   if (sgg[t + "군"]) return [{ name: t + "군", code: sgg[t + "군"] }];

@@ -10,6 +10,8 @@ import {
   resolveSido,
   resolveSggList,
 } from "./codes.js";
+import { fetchWithRetry } from "./lib/fetch-with-retry.js";
+import { schoolCache } from "./lib/cache.js";
 
 const BASE_URL = "https://www.schoolinfo.go.kr/openApi.do";
 
@@ -63,17 +65,11 @@ export class SchoolInfoClient {
     url.searchParams.set("sggCode", opts.sggCode);
     if (opts.pbanYr != null) url.searchParams.set("pbanYr", String(opts.pbanYr));
 
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 15_000);
-    let res: Response;
-    try {
-      res = await fetch(url, { headers: { "User-Agent": "schoolinfo-mcp/0.1" }, signal: ac.signal });
-    } catch (e: any) {
-      if (e?.name === "AbortError") throw new Error("학교알리미 OpenAPI 응답 시간 초과");
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await fetchWithRetry(
+      url,
+      { headers: { "User-Agent": "schoolinfo-mcp/0.1" } },
+      { timeout: 15_000, label: "학교알리미 OpenAPI" }
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${url.pathname}`);
     const data = (await res.json()) as ApiResult;
     if (data.resultCode !== "success") {
@@ -106,27 +102,37 @@ export class SchoolInfoClient {
     const kindCode = SCHOOL_KIND[params.kind];
     if (!kindCode) throw new Error(`알 수 없는 학교급: "${params.kind}"`);
 
-    // 자치구를 가진 시("포항")는 하위 구 코드를 모두 합산 검색 (시 전체 코드는 0건이라 무해)
-    const merged = new Map<string, School>();
-    let lastErr: Error | null = null;
-    for (const sgg of sggList) {
-      try {
-        const data = await this.request("0", {
-          sidoCode: sido.code,
-          sggCode: sgg.code,
-          schulKndCode: kindCode,
-        });
-        for (const r of data.list) {
-          const s = toSchool(r, sido.code, sgg.code, kindCode);
-          if (s.schoolCode) merged.set(s.schoolCode, s);
+    // 지역+학교급 단위 결과를 캐시 (이름 필터는 캐시 후 메모리에서). 동일 지역 반복조회 절감.
+    const cacheKey = `search:${sido.code}:${params.sgg.trim()}:${kindCode}`;
+    let schools = schoolCache.get<School[]>(cacheKey);
+    if (!schools) {
+      // 자치구를 가진 시("포항")는 하위 구 코드를 모두 합산 검색 (시 전체 코드는 0건이라 무해).
+      // 자치구가 여럿이면 병렬 호출(allSettled)로 직렬 왕복을 줄인다.
+      const merged = new Map<string, School>();
+      let lastErr: Error | null = null;
+      const settled = await Promise.allSettled(
+        sggList.map((sgg) =>
+          this.request("0", { sidoCode: sido.code, sggCode: sgg.code, schulKndCode: kindCode }).then(
+            (data) => ({ sgg, data })
+          )
+        )
+      );
+      for (const r of settled) {
+        if (r.status === "fulfilled") {
+          for (const row of r.value.data.list) {
+            const s = toSchool(row, sido.code, r.value.sgg.code, kindCode);
+            if (s.schoolCode) merged.set(s.schoolCode, s);
+          }
+        } else {
+          // "데이터 없음"(시 전체 코드 등) 등은 무시하고 계속
+          lastErr = r.reason instanceof Error ? r.reason : new Error(String(r.reason));
         }
-      } catch (e: any) {
-        lastErr = e; // "데이터 없음"(시 전체 코드 등)은 무시하고 계속
       }
+      if (merged.size === 0 && lastErr) throw lastErr;
+      schools = [...merged.values()];
+      // 일부 구가 일시 실패했으면(부분결과) 캐시하지 않는다 — 누락된 학교가 굳지 않게
+      if (!lastErr) schoolCache.set(cacheKey, schools);
     }
-    if (merged.size === 0 && lastErr) throw lastErr;
-
-    let schools = [...merged.values()];
     if (params.name) {
       const q = params.name.replace(/\s/g, "");
       schools = schools.filter((s) => s.name.replace(/\s/g, "").includes(q));
@@ -143,13 +149,22 @@ export class SchoolInfoClient {
     apiType: string,
     year?: string | number
   ): Promise<{ name: string; rows: Record<string, any>[] }> {
-    const data = await this.request(apiType, {
-      sidoCode: school.sidoCode,
-      sggCode: school.sggCode,
-      schulKndCode: school.schulKndCode,
-      pbanYr: year ?? new Date().getFullYear(),
-    });
-    const rows = data.list.filter((r) => r.SCHUL_CODE === school.schoolCode);
+    // 학교알리미는 지역 전체 list를 주므로 (지역+학교급+연도) 단위로 캐시하고 학교코드로 필터.
+    // → 같은 지역의 여러 학교/다이제스트 반복 항목에서 캐시 적중. 연도는 해석값으로 키 정규화.
+    const y = year ?? new Date().getFullYear();
+    const cacheKey = `disc:${apiType}:${school.sidoCode}:${school.sggCode}:${school.schulKndCode}:${y}`;
+    let list = schoolCache.get<Record<string, any>[]>(cacheKey);
+    if (!list) {
+      const data = await this.request(apiType, {
+        sidoCode: school.sidoCode,
+        sggCode: school.sggCode,
+        schulKndCode: school.schulKndCode,
+        pbanYr: y,
+      });
+      list = data.list;
+      schoolCache.set(cacheKey, list);
+    }
+    const rows = list.filter((r) => String(r.SCHUL_CODE ?? "") === school.schoolCode);
     return { name: API_TYPES[apiType] ?? apiType, rows };
   }
 }
@@ -173,13 +188,12 @@ export interface SchoolHit {
  * 결과의 sido/sgg/kind로 기존 공시·평가계획 조회에 그대로 브릿지된다.
  */
 export async function searchSchoolsByName(word: string, limit = 30): Promise<SchoolHit[]> {
-  const q = (word ?? "").trim();
+  // 입력 길이 캡(40자) — 웹은 이미 잘라 보내나 MCP find_school은 원본 전달이라 양 경로 일관 방어
+  const q = (word ?? "").trim().slice(0, 40);
   if (q.length < 2) return []; // 단일글자 전국검색 폭주 방지 (자동완성 최소 2자)
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 15_000);
-  let res: Response;
-  try {
-    res = await fetch(NAME_SEARCH_URL, {
+  const res = await fetchWithRetry(
+    NAME_SEARCH_URL,
+    {
       method: "POST",
       headers: {
         "User-Agent": NAME_SEARCH_UA,
@@ -188,14 +202,9 @@ export async function searchSchoolsByName(word: string, limit = 30): Promise<Sch
         Referer: "https://www.schoolinfo.go.kr/ei/ss/pneiss_a03_s0.do",
       },
       body: new URLSearchParams({ SEARCH_WORD: q }),
-      signal: ac.signal,
-    });
-  } catch (e: any) {
-    if (e?.name === "AbortError") throw new Error("학교알리미 응답 시간 초과");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+    },
+    { timeout: 15_000, label: "학교알리미" }
+  );
   if (!res.ok) throw new Error(`HTTP ${res.status} — 학교명 검색 실패`);
   // 응답 크기 상한 (4MB) — 거대 응답 전체 역직렬화 전 차단 (다운로드 경로와 동일한 방어)
   const declared = Number(res.headers.get("content-length") ?? "0");
@@ -248,10 +257,12 @@ function toSchool(
   schulKndCode: string
 ): School {
   return {
-    schoolCode: r.SCHUL_CODE,
+    // MCP 클라이언트가 숫자를 보낼 수 있고 필드 결측 시 후속 필터가 통째로 깨지므로 String 방어
+    schoolCode: String(r.SCHUL_CODE ?? ""),
     shlIdfCd: r.SHL_IDF_CD ?? "",
-    name: r.SCHUL_NM,
-    kind: r.SCHUL_CRSE_SC_VALUE_NM ? `${r.SCHUL_CRSE_SC_VALUE_NM}학교` : "",
+    name: String(r.SCHUL_NM ?? ""),
+    // 학교급명: API가 SCHUL_CRSE_SC_VALUE_NM을 안 주면 검색에 쓴 학교급 코드로 폴백 (빈 괄호 노출 방지)
+    kind: r.SCHUL_CRSE_SC_VALUE_NM ? `${r.SCHUL_CRSE_SC_VALUE_NM}학교` : (SCHOOL_KIND_REV[schulKndCode] ?? ""),
     foundation: r.FOND_SC_CODE ?? "",
     office: r.ATPT_OFCDC_ORG_NM ?? "",
     officeCode: r.ATPT_OFCDC_ORG_CODE ?? "",

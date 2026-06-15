@@ -5,11 +5,11 @@
 
 import http from "http";
 import { readFileSync } from "fs";
-import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName } from "./index.js";
+import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
 import type { School } from "./client.js";
-import { findNeisSchool, fetchSchedule, hasNeisKey } from "./neis.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear } from "./neis.js";
 import { renderPage } from "./web.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
@@ -37,20 +37,32 @@ const SECURITY_HEADERS: Record<string, string> = {
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 };
 
-// 간단 IP rate limit (in-memory, 단일 머신 기준) — 분당 60회
+// 간단 IP rate limit (in-memory, 단일 머신 기준)
 const RL_WINDOW = 60_000;
-const RL_MAX = 60;
+const RL_MAX = 60; // 일반 API: 분당 60회
+const RL_HEAVY_MAX = 10; // 평가계획 다운로드/파싱: 분당 10회 (증폭 DoS 완화)
 const rlMap = new Map<string, { count: number; reset: number }>();
-function rateLimited(ip: string, now: number): boolean {
-  const e = rlMap.get(ip);
+const rlHeavyMap = new Map<string, { count: number; reset: number }>();
+function rlHit(map: Map<string, { count: number; reset: number }>, max: number, ip: string, now: number): boolean {
+  const e = map.get(ip);
   if (!e || now > e.reset) {
-    rlMap.set(ip, { count: 1, reset: now + RL_WINDOW });
-    if (rlMap.size > 5000) for (const [k, v] of rlMap) if (now > v.reset) rlMap.delete(k);
+    map.set(ip, { count: 1, reset: now + RL_WINDOW });
+    if (map.size > 5000) for (const [k, v] of map) if (now > v.reset) map.delete(k);
     return false;
   }
   e.count++;
-  return e.count > RL_MAX;
+  return e.count > max;
 }
+function rateLimited(ip: string, now: number): boolean {
+  return rlHit(rlMap, RL_MAX, ip, now);
+}
+function rateLimitedHeavy(ip: string, now: number): boolean {
+  return rlHit(rlHeavyMap, RL_HEAVY_MAX, ip, now);
+}
+
+// 다운로드+파싱(메모리·CPU 큰 작업) 전역 동시성 상한 — 요청 간 in-flight 폭주로 인한 OOM 방어.
+const MAX_HEAVY_CONCURRENT = 4;
+let heavyInFlight = 0;
 
 function clientIp(req: http.IncomingMessage): string {
   // fly-client-ip는 fly 프록시가 설정하는 실제 클라이언트 IP (클라이언트가 보낸 값은 프록시가 덮어씀)
@@ -186,6 +198,20 @@ const server = http.createServer(async (req, res) => {
         return json(res, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." });
       }
 
+      // 비용 큰 엔드포인트(평가계획 다운로드/파싱)는 더 낮은 rate + 동시성 상한으로 증폭 DoS 방어.
+      // 동시성 카운터는 res 종료 시 자동 감소 → 모든 return/스트리밍 경로에서 누수 없음.
+      const isHeavy = url.pathname === "/api/evaluation" || url.pathname === "/api/download";
+      if (isHeavy) {
+        if (rateLimitedHeavy(clientIp(req), now)) {
+          return json(res, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요." });
+        }
+        if (heavyInFlight >= MAX_HEAVY_CONCURRENT) {
+          return json(res, 503, { error: "요청이 많아 잠시 후 다시 시도하세요." });
+        }
+        heavyInFlight++;
+        res.on("close", () => { heavyInFlight--; });
+      }
+
       // 학교명 전국 검색 — 인증키 불필요 (공시포털 자동완성 재현)
       if (url.pathname === "/api/searchName") {
         const word = (q.get("word") ?? "").slice(0, MAX_NAME_LEN);
@@ -270,9 +296,10 @@ const server = http.createServer(async (req, res) => {
           return json(res, 200, { school: school.name, items: [], note: "학사일정은 NEIS API 키 설정 후 제공됩니다." });
         }
         try {
-          const ns = await findNeisSchool(school.name, sido);
+          // 시도 약칭(경북 등)은 정식명으로 정규화해 NEIS LCTN_SC_NM과 매칭, sgg로 동명이교 구분
+          const ns = await findNeisSchool(school.name, resolveSido(sido)?.name ?? sido, sgg);
           if (!ns) return json(res, 200, { school: school.name, items: [], note: "NEIS에서 해당 학교를 찾지 못했습니다." });
-          const y = year ?? new Date().getFullYear();
+          const y = year ?? currentAcademicYear();
           const lastFeb = new Date(y + 1, 2, 0).getDate(); // 다음해 2월 말일(윤년 29 포함)
           const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
           return json(res, 200, { school: school.name, year: y, items });
@@ -357,10 +384,12 @@ const server = http.createServer(async (req, res) => {
             markdown,
           });
         } catch (e: any) {
+          // 상세 에러(저수준 네트워크 문구 등)는 로그에만, 사용자에겐 안내문구 (다른 엔드포인트와 동일 정책)
+          console.error("[evaluation]", e?.message ?? e);
           return json(res, 200, {
             school: school.name,
             mode: "doc",
-            markdown: `> ⚠️ 자동 조회 실패: ${e.message}\n\n${evaluationGuide(school, year)}`,
+            markdown: `> ⚠️ 평가계획을 자동으로 가져오지 못했습니다.\n\n${evaluationGuide(school, year)}`,
           });
         }
       }

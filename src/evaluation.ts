@@ -12,6 +12,7 @@
 import { parse } from "kordoc";
 import iconv from "iconv-lite";
 import type { School } from "./client.js";
+import { fetchWithRetry } from "./lib/fetch-with-retry.js";
 
 const BASE = "https://www.schoolinfo.go.kr";
 export const DISCLOSURE_PORTAL = `${BASE}/ei/ss/pneiss_a03_s0.do`;
@@ -28,18 +29,9 @@ export const MAX_ALL_DOCS = 20;
 /** 이 길이 미만이면 이미지 PDF 등으로 본문 추출이 사실상 실패한 것으로 간주 */
 const MIN_USEFUL_MD = 200;
 
-/** AbortController 기반 타임아웃 fetch */
+/** 타임아웃 + 재시도 fetch (학교알리미 평가계획 조회/다운로드용) */
 async function fetchT(url: string, init: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeout);
-  try {
-    return await fetch(url, { ...init, signal: ac.signal });
-  } catch (e: any) {
-    if (e?.name === "AbortError") throw new Error("학교알리미 응답이 지연되어 시간 초과되었습니다.");
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchWithRetry(url, init, { timeout, label: "학교알리미" });
 }
 
 // "교과별(학년별) 교수·학습 및 평가계획에 관한 사항" 공시항목 고정 코드
@@ -620,6 +612,9 @@ function looksLikeEvalTable(tableHtml: string): boolean {
  * 학년이 매핑된 종합표가 1개 이상일 때만 결과를 반환(아니면 null → 호출부가 폴백 렌더).
  */
 export function structureEvaluation(markdown: string): StructuredEvaluation | null {
+  // 과대 문서(이상치)는 동기 정규식 스캔이 이벤트 루프를 길게 점유(CPU DoS)하므로 구조화하지 않고
+  // 폴백(slim doc/원본 다운로드)으로 보낸다. 정상 통합문서는 수백KB라 2MB 여유 충분.
+  if (markdown.length > 2_000_000) return null;
   const grades: GradeOverview[] = [];
   const subjUnion = new Set<string>();
   for (const { html, index } of topLevelTables(markdown)) {

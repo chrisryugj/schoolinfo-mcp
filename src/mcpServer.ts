@@ -14,8 +14,9 @@ import { z } from "zod";
 import { readFileSync, statSync, realpathSync } from "fs";
 import { resolve, extname } from "path";
 import { SchoolInfoClient, School, searchSchoolsByName } from "./client.js";
-import { API_TYPES, SCHOOL_KIND, SchoolKindName, findApiType } from "./codes.js";
+import { API_TYPES, SCHOOL_KIND, SchoolKindName, findApiType, resolveSido } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule } from "./neis.js";
 import {
   evaluationGuide,
   parseEvaluationDocument,
@@ -121,7 +122,8 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
       return ok(
         "조회 가능한 공시정보 항목:\n\n" +
           lines.join("\n") +
-          "\n\n※ 수행평가 주제·평가기준(교과별 교수·학습 및 평가계획)은 OpenAPI에 없으며, get_evaluation_plan을 사용하세요."
+          "\n\n※ 수행평가 주제·평가기준(교과별 교수·학습 및 평가계획)은 OpenAPI에 없으며, get_evaluation_plan을 사용하세요." +
+          "\n※ 학사일정(시험·방학 등)도 공시에 없으며, get_school_schedule을 사용하세요."
       );
     }
   );
@@ -185,6 +187,33 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         const parts = [formatSchool(school), ""];
         for (const d of digest) parts.push(formatDisclosure(d.name, d.rows, d.apiType), "");
         return ok(parts.join("\n"));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.5 학사일정 (NEIS 교육정보 개방 API) ─────────────
+  // 학교알리미 공시 35종엔 없는 항목. NEIS_API_KEY만으로 동작(학교알리미 키 불필요).
+  server.tool(
+    "get_school_schedule",
+    "학교의 학사일정(시업식·중간/기말고사·방학·체험학습·개교기념일 등)을 NEIS 교육정보 개방 포털에서 조회합니다. 학교알리미 공시 35종엔 없는 항목입니다. 시도·학교명으로 찾고, 동명이교는 시군구로 구분합니다.",
+    {
+      sido: z.string().describe("시도명 (예: 서울특별시, 경기도 — 약칭 '서울'도 가능)"),
+      name: z.string().describe("학교명 (예: 개포중학교)"),
+      sgg: z.string().optional().describe("시군구명 (동명이교 구분용, 예: 강남구)"),
+      year: z.number().optional().describe("학년도 (기본: 현재 학년도. 한국 학년도는 3월~익년 2월)"),
+    },
+    async ({ sido, name, sgg, year }) => {
+      try {
+        if (!hasNeisKey())
+          return err("학사일정 조회는 NEIS API 키(NEIS_API_KEY)가 필요합니다. https://open.neis.go.kr 에서 무료 발급 후 설정하세요.");
+        const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+        if (!ns) return ok(`NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`);
+        const y = year ?? currentAcademicYear();
+        const lastFeb = new Date(y + 1, 2, 0).getDate(); // 다음해 2월 말일(윤년 29 포함)
+        const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
+        return ok(formatSchedule(ns.name, y, items));
       } catch (e: any) {
         return err(`오류: ${e.message}`);
       }

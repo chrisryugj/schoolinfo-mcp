@@ -156,7 +156,7 @@
 > Claude가 알아서 학교를 찾고, hwp를 내려받아 변환하고, 표로 정리해줍니다.
 > 학교코드·연도·파일 위치 같은 건 **하나도 몰라도 됩니다.**
 
-### 제공 도구 (로컬 7종 · 원격 6종)
+### 제공 도구 (로컬 8종 · 원격 7종)
 
 | 도구 | 하는 일 |
 |------|---------|
@@ -165,6 +165,7 @@
 | `list_disclosure_types` | 조회 가능한 공시항목 35종 목록 |
 | `get_disclosure` | 특정 공시 1건 (급식/학생수/동아리 등) |
 | `get_parent_digest` | 학부모 핵심 공시를 한 번에 |
+| `get_school_schedule` | **학사일정 조회** (시험·방학·체험학습 등, NEIS — `NEIS_API_KEY` 필요) |
 | `get_evaluation_plan` | **수행평가 계획 자동 조회** (hwp 다운로드 → 파싱 → 표 추출) |
 | `parse_evaluation_file` | 직접 받은 평가계획 파일(hwp/pdf/docx) 변환 |
 
@@ -228,7 +229,10 @@ npm run build
 ```bash
 # .env.local 파일 또는 환경변수
 SCHOOLINFO_API_KEY=발급받은_인증키
+NEIS_API_KEY=발급받은_NEIS_인증키   # 학사일정 기능용(선택) — https://open.neis.go.kr 무료 발급
 ```
+
+> `NEIS_API_KEY`는 학사일정(`get_school_schedule`)에만 쓰입니다. 없어도 나머지 공시 기능은 정상 동작합니다.
 
 > 웹앱(위 https://school-mcp.fly.dev)을 쓰면 **이 단계가 필요 없습니다.**
 

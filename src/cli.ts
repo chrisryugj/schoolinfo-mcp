@@ -12,9 +12,10 @@ import { join } from "path";
 import { homedir } from "os";
 import { execFile } from "child_process";
 import { SchoolInfoClient, School } from "./client.js";
-import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES } from "./codes.js";
+import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES, resolveSido } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
 import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation, listEvaluationDocs } from "./evaluation.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule } from "./neis.js";
 
 const KINDS = Object.keys(SCHOOL_KIND);
 const STATE_DIR = join(homedir(), ".schoolinfo-mcp");
@@ -87,7 +88,10 @@ async function main() {
         apiType = m[0].code;
       }
       let y: number | undefined;
-      if (year) { y = Number(year); if (!Number.isInteger(y)) { console.error(`잘못된 연도: ${year}`); process.exit(1); } }
+      if (year) {
+        y = Number(year);
+        if (!Number.isInteger(y) || y < 2010 || y > 2100) { console.error(`잘못된 연도: ${year}`); process.exit(1); }
+      }
       const r = await c.getDisclosure(school, apiType, y);
       console.log(formatDisclosure(r.name, r.rows, apiType));
       break;
@@ -145,6 +149,28 @@ async function main() {
       await runCheck(sido, sgg, kind as SchoolKindName, name);
       break;
     }
+    case "schedule": {
+      // 학사일정은 NEIS API만 사용 — 학교알리미 인증키 불필요, NEIS_API_KEY만 필요
+      const [sido, sgg, kind, name, yearArg] = args;
+      requireKind(kind); requireName(name);
+      if (!hasNeisKey()) {
+        console.error("❌ 학사일정 조회는 환경변수 NEIS_API_KEY가 필요합니다.");
+        console.error("   인증키 발급(무료): https://open.neis.go.kr");
+        process.exit(1);
+      }
+      let year: number | undefined;
+      if (yearArg) {
+        year = Number(yearArg);
+        if (!Number.isInteger(year) || year < 2010 || year > 2100) { console.error(`잘못된 연도: ${yearArg}`); process.exit(1); }
+      }
+      const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+      if (!ns) { console.error(`❌ NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`); process.exit(1); }
+      const y = year ?? currentAcademicYear();
+      const lastFeb = new Date(y + 1, 2, 0).getDate();
+      const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
+      console.log(formatSchedule(ns.name, y, items));
+      break;
+    }
     default:
       printHelp();
   }
@@ -155,7 +181,13 @@ async function runCheck(sido: string, sgg: string, kind: SchoolKindName, name: s
   const c = client();
   const school = await pickSchool(c, sido, sgg, kind, name);
   const digest = await getParentDigest(c, school);
-  const snapshot = JSON.stringify(digest.map((d) => ({ n: d.name, r: d.rows })));
+  // 조회 실패 항목이 있으면 거짓 '변경' 알림과 빈 스냅샷 오염을 막기 위해 갱신/알림 스킵
+  if (digest.some((d) => d.error)) {
+    console.error(`⚠️ 일부 공시를 가져오지 못해 스냅샷을 갱신하지 않습니다 — ${school.name} (다음 실행에서 재시도)`);
+    return;
+  }
+  // apiType를 키로 저장해 항목 순서/개수가 바뀌어도 정확히 대조 (인덱스 정렬 가정 제거)
+  const snapshot = JSON.stringify(digest.map((d) => ({ t: d.apiType, r: d.rows })));
 
   if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
   const key = `${school.schoolCode}.json`.replace(/[^\w.]/g, "_");
@@ -163,11 +195,13 @@ async function runCheck(sido: string, sgg: string, kind: SchoolKindName, name: s
   const prev = existsSync(file) ? readFileSync(file, "utf8") : "";
 
   if (prev && prev !== snapshot) {
+    let prevByType = new Map<string, string>();
+    try {
+      const arr = JSON.parse(prev) as { t: string; r: unknown }[];
+      prevByType = new Map(arr.map((p) => [p.t, JSON.stringify(p.r)]));
+    } catch { /* 구버전/손상 스냅샷 → 전체를 변경으로 간주 */ }
     const changed = digest
-      .filter((d, i) => {
-        const p = prev ? JSON.parse(prev)[i] : null;
-        return !p || JSON.stringify(p.r) !== JSON.stringify(d.rows);
-      })
+      .filter((d) => prevByType.get(d.apiType) !== JSON.stringify(d.rows))
       .map((d) => d.name);
     notify(`${school.name} 공시 변경`, `변경 항목: ${changed.join(", ") || "확인 필요"}`);
   } else if (!prev) {
@@ -198,6 +232,7 @@ function printHelp() {
   schoolinfo eval   <시도> <시군구> <학교급> <학교명>   평가계획(수행평가) 찾기 안내
   schoolinfo parse  <hwp파일경로>                       받은 평가계획 → 마크다운
   schoolinfo check  <시도> <시군구> <학교급> <학교명>   변경 감지 + 알림(스케줄러용)
+  schoolinfo schedule <시도> <시군구> <학교급> <학교명> [연도]   학사일정(시험·방학 등, NEIS)
 
 학교급: ${KINDS.join(", ")}
 
@@ -205,8 +240,9 @@ function printHelp() {
   schoolinfo digest 서울 강남구 중학교 개포중학교
   schoolinfo eval 서울 강남구 중학교 개포중학교
   schoolinfo check 서울 강남구 중학교 개포중학교
+  schoolinfo schedule 서울 강남구 중학교 개포중학교
 
-환경변수: SCHOOLINFO_API_KEY (인증키)`);
+환경변수: SCHOOLINFO_API_KEY (공시 조회), NEIS_API_KEY (학사일정 — https://open.neis.go.kr 무료 발급)`);
 }
 
 main().catch((e) => { console.error("오류:", e.message); process.exit(1); });

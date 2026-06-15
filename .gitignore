@@ -13,3 +13,4 @@ test_nationwide.mjs
 si_dl/
 reg*.mjs
 dbg*.mjs
+.claude/

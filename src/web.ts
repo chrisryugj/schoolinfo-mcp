@@ -203,6 +203,18 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* 평가계획 과목 선택: 긴 파일명 버튼은 한 줄 전체 차지(줄바꿈 허용), 원본 다운로드는 아래 줄로 */
   .evalpick{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0;}
   .evalpick .pick{flex:1 1 100%; min-width:0; white-space:normal; word-break:break-word; text-align:left; justify-content:flex-start; line-height:1.35;}
+  .meal-filter{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin:10px 0; font-size:.9em;}
+  .meal-filter input{flex:1; min-width:130px; padding:7px 10px; border:1px solid #d9d9e3; border-radius:8px; font-size:.95em;}
+  .meal-list{padding:2px 0 6px;}
+  .dish{padding:5px 2px; border-bottom:1px solid rgba(0,0,0,.06);}
+  .dish:last-child{border-bottom:none;}
+  .dish.bad{color:#c0392b; font-weight:600;}
+  .dish .al{font-size:.8em; color:#999; margin-left:4px;}
+  .meal-tag{font-weight:700; margin:8px 0 2px; font-size:.92em;}
+  .meal-tag.warn{color:#c0392b;}
+  .meal-tag.safe{color:#1e8449;}
+  .meal-disc{font-size:.8em; color:#999; margin-top:12px; line-height:1.4;}
+  .sched-hi{background:#fff7e6; border:1px solid #ffe0a3; border-radius:8px; padding:8px 12px; margin:6px 0 12px; font-weight:600; font-size:.92em;}
   .out{margin-top:10px; font-size:15px; color:var(--ink-dim);}
   .out :first-child{margin-top:0;}
   .out h2{font-size:19px; color:#fff; margin:24px 0 8px; letter-spacing:-0.02em;}
@@ -478,6 +490,8 @@ function schoolCard(ctx, opts){
   const acts = ctx.kind
     ? '<div class="acts">'
       + '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
       + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
       + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
       + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
@@ -541,6 +555,8 @@ document.addEventListener('click', (e) => {
   if (act === 'eval'){ rememberFrom(b); loadEval(ctxOf(b)); }
   else if (act === 'digest'){ rememberFrom(b); loadDigest(ctxOf(b)); }
   else if (act === 'schedule'){ rememberFrom(b); loadSchedule(ctxOf(b)); }
+  else if (act === 'meal'){ rememberFrom(b); loadMeal(ctxOf(b)); }
+  else if (act === 'week'){ rememberFrom(b); loadWeek(ctxOf(b)); }
   else if (act === 'compare'){ rememberFrom(b); loadCompare(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
@@ -727,6 +743,14 @@ function renderSchedule(d){
   const byMonth = {};
   for (const it of items){ const m = it.date.slice(0,6); (byMonth[m] = byMonth[m] || []).push(it); }
   let html = '';
+  const up = d.upcoming;
+  if (up && (up.exam || up.vacation)){
+    const dl = (e)=> h(e.name)+' '+(e.dday===0?'D-DAY':'D-'+e.dday);
+    const chips = [];
+    if (up.exam) chips.push('📝 다음 시험: '+dl(up.exam));
+    if (up.vacation) chips.push('🏖 다음 방학: '+dl(up.vacation));
+    html += '<p class="sched-hi">'+chips.join('  ·  ')+'</p>';
+  }
   for (const m of Object.keys(byMonth).sort()){
     const rows = byMonth[m].map(it =>
       '<tr><td>'+(+it.date.slice(6,8))+'일</td><td>'+h(it.name)
@@ -735,6 +759,83 @@ function renderSchedule(d){
       + '<div class="out"><table class="sched"><tbody>'+rows+'</tbody></table></div>';
   }
   $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'+html+'</div>';
+  $('output').scrollIntoView({behavior:'smooth', block:'start'});
+}
+/* ── 급식 (NEIS) — 서버는 알레르기 번호를 구조화해 내려주고, 회피 필터는 클라이언트에서 적용 ── */
+const ALLERGEN_NM = {1:'난류',2:'우유',3:'메밀',4:'땅콩',5:'대두',6:'밀',7:'고등어',8:'게',9:'새우',10:'돼지고기',11:'복숭아',12:'토마토',13:'아황산류',14:'호두',15:'닭고기',16:'쇠고기',17:'오징어',18:'조개류'};
+function mealDayLabel(ymd){
+  const WD=['일','월','화','수','목','금','토'];
+  const y=+ymd.slice(0,4), m=+ymd.slice(4,6), dd=+ymd.slice(6,8);
+  return m+'/'+dd+'('+WD[new Date(Date.UTC(y,m-1,dd)).getUTCDay()]+')';
+}
+function avoidSet(str){
+  const out = new Set();
+  (str||'').split(/[,\s]+/).filter(Boolean).forEach(tok => {
+    if (/^\d+$/.test(tok)){ if(ALLERGEN_NM[+tok]) out.add(+tok); }
+    else { for (const k in ALLERGEN_NM){ const nm=ALLERGEN_NM[k]; if(nm.indexOf(tok)===0||tok.indexOf(nm)===0) out.add(+k); } }
+  });
+  return out;
+}
+function alStr(arr){ return (arr||[]).map(n=>ALLERGEN_NM[n]||('?'+n)).join('·'); }
+async function loadMeal(ctx){
+  $('output').innerHTML = spinner('🍚 '+h(ctx.name)+' 급식을 가져오는 중…');
+  try{
+    const r = await fetch('/api/meal?'+qp(ctx, {days:'7'}));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderMeal(ctx, d);
+  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+}
+/* ── 이번주 브리핑 (NEIS 급식+학사일정+D-day) — 마크다운 렌더 ── */
+async function loadWeek(ctx){
+  $('output').innerHTML = spinner('📅 '+h(ctx.name)+' 이번주 브리핑을 가져오는 중…');
+  try{
+    const r = await fetch('/api/week?'+qp(ctx));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    render('📅 '+h(d.school||ctx.name)+' 이번주', d.markdown, '');
+  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+}
+function renderMeal(ctx, d){
+  const items = d.items||[];
+  const title = '🍚 '+h(d.school||ctx.name)+' 급식';
+  if (!items.length){
+    $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'
+      + '<p class="state">'+h(d.note||'표시할 급식이 없습니다 (주말·방학일 수 있어요).')+'</p></div>';
+    $('output').scrollIntoView({behavior:'smooth', block:'start'}); return;
+  }
+  const card = document.createElement('div'); card.className='card fade';
+  $('output').innerHTML=''; $('output').appendChild(card);
+  const dishRow = (x, bad) => '<div class="dish'+(bad?' bad':'')+'">'+h(x.name)
+    + ((x.allergens&&x.allergens.length)?' <span class="al">'+h(alStr(x.allergens))+'</span>':'')+'</div>';
+  const draw = (avoidStr) => {
+    const avoid = avoidSet(avoidStr);
+    let html = '<div class="result-head"><h2>'+title+'</h2></div>'
+      + '<div class="meal-filter">🚫 알레르기 회피 '
+      + '<input id="mealAvoid" type="text" placeholder="예: 우유, 땅콩" value="'+h(avoidStr||'')+'">'
+      + '<button class="btn btn-soft btn-sm" id="mealApply">적용</button></div>';
+    for (const it of items){
+      const ds = it.dishes||[];
+      html += '<div class="detail-head">'+h(mealDayLabel(it.date))+' '+h(it.meal)+(it.kcal?' · '+h(it.kcal):'')+'</div>';
+      html += '<div class="out meal-list">';
+      if (avoid.size){
+        const hit = ds.filter(x=>(x.allergens||[]).some(a=>avoid.has(a)));
+        const safe = ds.filter(x=>!(x.allergens||[]).some(a=>avoid.has(a)));
+        if (hit.length) html += '<div class="meal-tag warn">⚠️ 회피 해당</div>' + hit.map(x=>dishRow(x,true)).join('');
+        html += '<div class="meal-tag safe">✅ 안전</div>' + safe.map(x=>dishRow(x,false)).join('');
+      } else {
+        html += ds.map(x=>dishRow(x,false)).join('');
+      }
+      html += '</div>';
+    }
+    html += '<p class="meal-disc">※ 알레르기 정보는 참고용입니다. 최종 확인은 학교 영양(교)사에게 하세요.</p>';
+    card.innerHTML = html;
+    const inp = card.querySelector('#mealAvoid');
+    const apply = ()=>{ const v=inp.value; draw(v); const ni=card.querySelector('#mealAvoid'); if(ni){ ni.focus(); ni.setSelectionRange(v.length,v.length); } };
+    card.querySelector('#mealApply').onclick = apply;
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter') apply(); });
+  };
+  draw('');
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 /* ── 주변 학교 학생수 비교 (같은 시군구·학교급) ── */

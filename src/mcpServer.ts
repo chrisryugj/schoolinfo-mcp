@@ -16,7 +16,11 @@ import { resolve, extname } from "path";
 import { SchoolInfoClient, School, searchSchoolsByName } from "./client.js";
 import { API_TYPES, SCHOOL_KIND, SchoolKindName, findApiType, resolveSido } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
-import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule } from "./neis.js";
+import {
+  findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule,
+  fetchMeal, formatMeal, parseAvoid, todayKstYmd, addDaysYmd,
+  fetchTimetable, weekRange, formatWeek, upcomingHighlights,
+} from "./neis.js";
 import {
   evaluationGuide,
   parseEvaluationDocument,
@@ -214,6 +218,77 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         const lastFeb = new Date(y + 1, 2, 0).getDate(); // 다음해 2월 말일(윤년 29 포함)
         const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
         return ok(formatSchedule(ns.name, y, items));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.6 급식 식단 (NEIS) ───────────────────────────────
+  // 학교알리미 공시의 '급식'(34/35)은 연간 통계. 매일 식단표·알레르기는 NEIS에만 있다.
+  server.tool(
+    "get_school_meal",
+    "학교 급식 식단(요리·알레르기 유발식품·칼로리·영양)을 NEIS 교육정보 개방 포털에서 조회합니다. 학교알리미 공시의 '급식'은 연간 통계일 뿐 매일 식단표는 여기에만 있습니다. avoid에 알레르기(예: ['우유','땅콩'])를 주면 회피/안전 메뉴를 갈라 보여줍니다. 학교급 없이 시도·학교명으로 찾고, 동명이교는 시군구로 구분합니다.",
+    {
+      sido: z.string().describe("시도명 (예: 서울특별시 — 약칭 '서울'도 가능)"),
+      name: z.string().describe("학교명 (예: 개포중학교)"),
+      sgg: z.string().optional().describe("시군구명 (동명이교 구분용, 예: 강남구)"),
+      date: z.string().optional().describe("기준일 YYYYMMDD (기본: 오늘)"),
+      days: z.number().optional().describe("기준일부터 조회할 일수 (기본 1, 최대 31). 7이면 일주일치"),
+      avoid: z.array(z.string()).optional().describe("회피할 알레르기 이름/번호 (예: ['우유','땅콩'] 또는 ['2','4'])"),
+      nutrition: z.boolean().optional().describe("true면 9대 영양소까지 표시 (기본 칼로리만)"),
+    },
+    async ({ sido, name, sgg, date, days, avoid, nutrition }) => {
+      try {
+        if (!hasNeisKey())
+          return err("급식 조회는 NEIS API 키(NEIS_API_KEY)가 필요합니다. https://open.neis.go.kr 에서 무료 발급 후 설정하세요.");
+        const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+        if (!ns) return ok(`NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`);
+        const from = date && /^\d{8}$/.test(date) ? date : todayKstYmd();
+        const n = Math.min(Math.max(days ?? 1, 1), 31);
+        const items = await fetchMeal(ns.atptCode, ns.schoolCode, from, addDaysYmd(from, n - 1));
+        return ok(formatMeal(ns.name, items, { avoid: parseAvoid(avoid), nutrition }));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.7 이번주 브리핑 (NEIS 급식+학사일정+D-day, 옵션 시간표) ──
+  server.tool(
+    "get_school_week",
+    "이번주 학교 브리핑 — 급식(주간)·이번주 학사일정·다가오는 시험/방학 D-day를 한 번에 모아 보여줍니다. kind·grade·class를 모두 주면 오늘 시간표도 포함합니다. 학부모가 아침에 한 번 보는 요약용. 학교급 없이 시도·학교명으로 찾습니다.",
+    {
+      sido: z.string().describe("시도명 (예: 서울특별시 — 약칭 '서울'도 가능)"),
+      name: z.string().describe("학교명 (예: 개포중학교)"),
+      sgg: z.string().optional().describe("시군구명 (동명이교 구분용)"),
+      kind: z.enum(KINDS).optional().describe("학교급 (오늘 시간표 조회용, grade·class와 함께)"),
+      grade: z.string().optional().describe("학년 (오늘 시간표용, 예: '1')"),
+      class: z.string().optional().describe("반 (오늘 시간표용, 예: '3')"),
+    },
+    async ({ sido, name, sgg, kind, grade, class: cls }) => {
+      try {
+        if (!hasNeisKey())
+          return err("이번주 브리핑은 NEIS API 키(NEIS_API_KEY)가 필요합니다. https://open.neis.go.kr 에서 무료 발급 후 설정하세요.");
+        const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+        if (!ns) return ok(`NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`);
+        const today = todayKstYmd();
+        const range = weekRange(today);
+        const ay = currentAcademicYear();
+        const lastFeb = new Date(ay + 1, 2, 0).getDate();
+        const [meals, sched] = await Promise.all([
+          fetchMeal(ns.atptCode, ns.schoolCode, range.from, range.to),
+          fetchSchedule(ns.atptCode, ns.schoolCode, `${ay}0301`, `${ay + 1}02${lastFeb}`),
+        ]);
+        const weekEvents = sched.filter((e) => e.date >= range.from && e.date <= range.to);
+        const upcoming = upcomingHighlights(sched, today);
+        let todayTimetable;
+        if (kind && grade && cls) {
+          try {
+            todayTimetable = await fetchTimetable(kind, ns.atptCode, ns.schoolCode, ay, grade, cls, today, today);
+          } catch { /* 시간표 미등록/오류는 무시(브리핑 본체는 유지) */ }
+        }
+        return ok(formatWeek(ns.name, range, { meals, weekEvents, upcoming, todayTimetable, today }));
       } catch (e: any) {
         return err(`오류: ${e.message}`);
       }

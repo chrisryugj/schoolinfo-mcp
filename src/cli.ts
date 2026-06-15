@@ -15,7 +15,11 @@ import { SchoolInfoClient, School } from "./client.js";
 import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES, resolveSido } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
 import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation, listEvaluationDocs } from "./evaluation.js";
-import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule } from "./neis.js";
+import {
+  findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule,
+  fetchMeal, formatMeal, parseAvoid, todayKstYmd,
+  fetchTimetable, weekRange, formatWeek, upcomingHighlights,
+} from "./neis.js";
 
 const KINDS = Object.keys(SCHOOL_KIND);
 const STATE_DIR = join(homedir(), ".schoolinfo-mcp");
@@ -171,6 +175,50 @@ async function main() {
       console.log(formatSchedule(ns.name, y, items));
       break;
     }
+    case "meal": {
+      // 급식도 NEIS API만 사용 — 학교알리미 키 불필요. 학교급은 명령 일관성 위해 받되 NEIS 조회엔 미사용.
+      const [sido, sgg, kind, name, ...avoidArgs] = args;
+      requireKind(kind); requireName(name);
+      if (!hasNeisKey()) {
+        console.error("❌ 급식 조회는 환경변수 NEIS_API_KEY가 필요합니다.");
+        console.error("   인증키 발급(무료): https://open.neis.go.kr");
+        process.exit(1);
+      }
+      const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+      if (!ns) { console.error(`❌ NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`); process.exit(1); }
+      const today = todayKstYmd();
+      const items = await fetchMeal(ns.atptCode, ns.schoolCode, today, today);
+      console.log(formatMeal(ns.name, items, { avoid: parseAvoid(avoidArgs) }));
+      break;
+    }
+    case "week": {
+      // 이번주 브리핑: 급식+학사일정+D-day (+학년/반 주면 오늘 시간표). NEIS API만 사용.
+      const [sido, sgg, kind, name, grade, cls] = args;
+      requireKind(kind); requireName(name);
+      if (!hasNeisKey()) {
+        console.error("❌ 이번주 브리핑은 환경변수 NEIS_API_KEY가 필요합니다.");
+        console.error("   인증키 발급(무료): https://open.neis.go.kr");
+        process.exit(1);
+      }
+      const ns = await findNeisSchool(name, resolveSido(sido)?.name ?? sido, sgg);
+      if (!ns) { console.error(`❌ NEIS에서 학교를 찾지 못했습니다: ${sido} ${name}`); process.exit(1); }
+      const today = todayKstYmd();
+      const range = weekRange(today);
+      const ay = currentAcademicYear();
+      const lastFeb = new Date(ay + 1, 2, 0).getDate();
+      const [meals, sched] = await Promise.all([
+        fetchMeal(ns.atptCode, ns.schoolCode, range.from, range.to),
+        fetchSchedule(ns.atptCode, ns.schoolCode, `${ay}0301`, `${ay + 1}02${lastFeb}`),
+      ]);
+      const weekEvents = sched.filter((e) => e.date >= range.from && e.date <= range.to);
+      const upcoming = upcomingHighlights(sched, today);
+      let todayTimetable;
+      if (grade && cls) {
+        try { todayTimetable = await fetchTimetable(kind as SchoolKindName, ns.atptCode, ns.schoolCode, ay, grade, cls, today, today); } catch {}
+      }
+      console.log(formatWeek(ns.name, range, { meals, weekEvents, upcoming, todayTimetable, today }));
+      break;
+    }
     default:
       printHelp();
   }
@@ -233,6 +281,8 @@ function printHelp() {
   schoolinfo parse  <hwp파일경로>                       받은 평가계획 → 마크다운
   schoolinfo check  <시도> <시군구> <학교급> <학교명>   변경 감지 + 알림(스케줄러용)
   schoolinfo schedule <시도> <시군구> <학교급> <학교명> [연도]   학사일정(시험·방학 등, NEIS)
+  schoolinfo meal     <시도> <시군구> <학교급> <학교명> [회피알레르기…]   오늘 급식(알레르기 표시, NEIS)
+  schoolinfo week     <시도> <시군구> <학교급> <학교명> [학년] [반]   이번주 브리핑(급식·일정·D-day, NEIS)
 
 학교급: ${KINDS.join(", ")}
 
@@ -241,8 +291,10 @@ function printHelp() {
   schoolinfo eval 서울 강남구 중학교 개포중학교
   schoolinfo check 서울 강남구 중학교 개포중학교
   schoolinfo schedule 서울 강남구 중학교 개포중학교
+  schoolinfo meal 서울 강남구 중학교 개포중학교 우유 땅콩
+  schoolinfo week 서울 강남구 중학교 개포중학교 1 3
 
-환경변수: SCHOOLINFO_API_KEY (공시 조회), NEIS_API_KEY (학사일정 — https://open.neis.go.kr 무료 발급)`);
+환경변수: SCHOOLINFO_API_KEY (공시 조회), NEIS_API_KEY (급식·학사일정 — https://open.neis.go.kr 무료 발급)`);
 }
 
 main().catch((e) => { console.error("오류:", e.message); process.exit(1); });

@@ -9,7 +9,7 @@ import { createClient, formatSchool, formatDisclosure, getParentDigest, getAreaS
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
 import type { School } from "./client.js";
-import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear } from "./neis.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, fetchMeal, todayKstYmd, addDaysYmd, weekRange, formatWeek, upcomingHighlights } from "./neis.js";
 import { renderPage } from "./web.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
@@ -310,11 +310,59 @@ const server = http.createServer(async (req, res) => {
           const y = year ?? currentAcademicYear();
           const lastFeb = new Date(y + 1, 2, 0).getDate(); // 다음해 2월 말일(윤년 29 포함)
           const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
-          return json(res, 200, { school: school.name, year: y, items });
+          return json(res, 200, { school: school.name, year: y, items, upcoming: upcomingHighlights(items) });
         } catch (e: any) {
           // 상세는 로그에만, 사용자에겐 일반 문구 (전역 catch와 동일한 정보-비노출 정책)
           console.error("[schedule]", e?.message ?? e);
           return json(res, 200, { school: school.name, items: [], note: "학사일정을 일시적으로 가져오지 못했습니다." });
+        }
+      }
+
+      // 급식 (NEIS) — 구조화 items 반환(클라이언트가 알레르기 회피 필터를 적용)
+      if (url.pathname === "/api/meal") {
+        const school = await resolve();
+        if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
+        if (!hasNeisKey()) {
+          return json(res, 200, { school: school.name, items: [], note: "급식은 NEIS API 키 설정 후 제공됩니다." });
+        }
+        try {
+          const ns = await findNeisSchool(school.name, resolveSido(sido)?.name ?? sido, sgg);
+          if (!ns) return json(res, 200, { school: school.name, items: [], note: "NEIS에서 해당 학교를 찾지 못했습니다." });
+          const from = todayKstYmd();
+          const days = Math.min(Math.max(Number(q.get("days")) || 7, 1), 31);
+          const items = await fetchMeal(ns.atptCode, ns.schoolCode, from, addDaysYmd(from, days - 1));
+          return json(res, 200, { school: school.name, items });
+        } catch (e: any) {
+          console.error("[meal]", e?.message ?? e);
+          return json(res, 200, { school: school.name, items: [], note: "급식을 일시적으로 가져오지 못했습니다." });
+        }
+      }
+
+      // 이번주 브리핑 (NEIS) — 급식+학사일정+D-day 를 마크다운으로 (web은 시간표 생략: 학년/반 입력 UI 없음)
+      if (url.pathname === "/api/week") {
+        const school = await resolve();
+        if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
+        if (!hasNeisKey()) {
+          return json(res, 200, { school: school.name, markdown: "이번주 브리핑은 NEIS API 키 설정 후 제공됩니다." });
+        }
+        try {
+          const ns = await findNeisSchool(school.name, resolveSido(sido)?.name ?? sido, sgg);
+          if (!ns) return json(res, 200, { school: school.name, markdown: "NEIS에서 해당 학교를 찾지 못했습니다." });
+          const today = todayKstYmd();
+          const range = weekRange(today);
+          const ay = currentAcademicYear();
+          const lastFeb = new Date(ay + 1, 2, 0).getDate();
+          const [meals, sched] = await Promise.all([
+            fetchMeal(ns.atptCode, ns.schoolCode, range.from, range.to),
+            fetchSchedule(ns.atptCode, ns.schoolCode, `${ay}0301`, `${ay + 1}02${lastFeb}`),
+          ]);
+          const weekEvents = sched.filter((e) => e.date >= range.from && e.date <= range.to);
+          const upcoming = upcomingHighlights(sched, today);
+          const md = formatWeek(ns.name, range, { meals, weekEvents, upcoming, today });
+          return json(res, 200, { school: school.name, markdown: md });
+        } catch (e: any) {
+          console.error("[week]", e?.message ?? e);
+          return json(res, 200, { school: school.name, markdown: "이번주 정보를 일시적으로 가져오지 못했습니다." });
         }
       }
 

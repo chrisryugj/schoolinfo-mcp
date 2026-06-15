@@ -494,9 +494,11 @@ document.addEventListener('click', (e) => {
   else if (act === 'home'){ openHomepage(ctxOf(b), b); }
 });
 
-/* 이름검색 결과의 홈페이지: 클릭 시에만 해석(검색 시 N번 호출 방지). 팝업차단 회피 위해 빈 창 먼저 연다 */
+/* 이름검색 결과의 홈페이지: 클릭 시에만 해석(검색 시 N번 호출 방지).
+   팝업차단 회피 위해 클릭 제스처 안에서 빈 탭을 먼저 연다(handle 필요 → noopener 금지,
+   대신 navigate 전에 w.opener=null로 보안 처리). */
 async function openHomepage(ctx, btn){
-  const w = window.open('', '_blank', 'noopener');
+  const w = window.open('about:blank', '_blank');
   const prev = btn ? btn.textContent : '';
   if (btn) btn.textContent = '🌐 여는 중…';
   try{
@@ -505,8 +507,13 @@ async function openHomepage(ctx, btn){
     const list = d.schools||[];
     const s = list.find(x => x.name===ctx.name) || list[0];
     const hp = s && safeUrl(s.homepage);
-    if (hp){ if (w) w.location = hp; else window.open(hp, '_blank', 'noopener'); }
-    else { if (w) w.close(); if (btn){ btn.textContent='홈페이지 없음'; setTimeout(()=>{ btn.textContent=prev; }, 1500); return; } }
+    if (hp){
+      if (w){ try{ w.opener = null; }catch(_){} w.location.replace(hp); }
+      else { window.open(hp, '_blank'); }            // 빈 탭 못 열었으면(차단) 직접 시도
+    } else {
+      if (w) w.close();
+      if (btn){ btn.textContent = '홈페이지 없음'; setTimeout(()=>{ btn.textContent = prev; }, 1500); return; }
+    }
   }catch(e){ if (w) w.close(); }
   if (btn) btn.textContent = prev;
 }

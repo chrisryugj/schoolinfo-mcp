@@ -5,7 +5,7 @@
 
 import http from "http";
 import { readFileSync } from "fs";
-import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
+import { createClient, formatSchool, formatDisclosure, getParentDigest, getAreaStudents, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
 import type { School } from "./client.js";
@@ -315,6 +315,17 @@ const server = http.createServer(async (req, res) => {
           // 상세는 로그에만, 사용자에겐 일반 문구 (전역 catch와 동일한 정보-비노출 정책)
           console.error("[schedule]", e?.message ?? e);
           return json(res, 200, { school: school.name, items: [], note: "학사일정을 일시적으로 가져오지 못했습니다." });
+        }
+      }
+
+      // 지역(시군구) 학교별 학생수 비교 — OpenAPI "09" 시군구 전체를 1회 조회해 정리
+      if (url.pathname === "/api/compare") {
+        try {
+          const data = await getAreaStudents(client, sido, sgg, kind, year);
+          return json(res, 200, data);
+        } catch (e: any) {
+          console.error("[compare]", e?.message ?? e);
+          return json(res, 200, { sido, sgg, kind, schools: [], note: "주변 학교 학생수를 가져오지 못했습니다." });
         }
       }
 

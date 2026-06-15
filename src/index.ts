@@ -29,7 +29,7 @@ export {
 export type { EvaluationResult, EvaluationFile, GradeOverview, StructuredEvaluation } from "./evaluation.js";
 
 import { SchoolInfoClient, School } from "./client.js";
-import { API_TYPES } from "./codes.js";
+import { API_TYPES, SCHOOL_KIND, SchoolKindName, resolveSido, resolveSggList } from "./codes.js";
 import labelsData from "./labels.json" with { type: "json" };
 
 /** apiType별 컬럼ID → 한글 라벨 (OpenAPI_Output.xlsx 추출) */
@@ -125,6 +125,112 @@ export interface DigestEntry {
   apiType: string;
   /** 조회 실패(인증/네트워크/타임아웃 등)면 true — '데이터 없음'(rows:[])과 구분. check가 거짓 변경알림을 막는 데 사용 */
   error?: boolean;
+}
+
+// ─── 지역(시군구) 학교별 학생수 비교 ───────────────────────────
+// 학교알리미는 "09 학년별·학급별 학생수" 조회 시 시군구 전체 학교 행을 한 번에 주므로,
+// 같은 시군구+학교급 학생수 비교표를 API 1회(자치구 시는 구 수만큼)로 만든다.
+
+const STUDENT_LABELS = (labelsData as any)["09"] as Record<string, string> | undefined;
+
+export interface AreaSchoolStudents {
+  name: string;
+  schoolCode: string;
+  total: number | null;
+  byGrade: Record<number, number>;
+  classes: number | null;
+  perClass: number | null;
+  perTeacher: number | null;
+}
+export interface AreaStudents {
+  sido: string;
+  sgg: string;
+  kind: string;
+  year: number;
+  grades: number[];
+  schools: AreaSchoolStudents[];
+}
+
+export async function getAreaStudents(
+  client: SchoolInfoClient,
+  sidoName: string,
+  sggInput: string,
+  kind: SchoolKindName,
+  year?: number
+): Promise<AreaStudents> {
+  const sido = resolveSido(sidoName);
+  if (!sido) throw new Error(`알 수 없는 시도: ${sidoName}`);
+  const sggList = resolveSggList(sido.name, sggInput);
+  if (!sggList.length) throw new Error(`알 수 없는 시군구: ${sggInput}`);
+  const kindCode = SCHOOL_KIND[kind];
+  if (!kindCode) throw new Error(`알 수 없는 학교급: ${kind}`);
+  const y = year ?? new Date().getFullYear();
+
+  // 자치구를 가진 시는 구별 합산. 학교코드로 중복 제거.
+  const seen = new Set<string>();
+  const rows: Record<string, any>[] = [];
+  for (const s of sggList) {
+    let list: Record<string, any>[];
+    try {
+      list = await client.getAreaDisclosure("09", sido.code, s.code, kindCode, y);
+    } catch {
+      continue; // "데이터 없음"(시 전체 코드 등)은 무시
+    }
+    for (const r of list) {
+      const code = String(r.SCHUL_CODE ?? "");
+      if (code && !seen.has(code)) {
+        seen.add(code);
+        rows.push(r);
+      }
+    }
+  }
+
+  const num = (v: any): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(String(v).replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const pick = (r: Record<string, any>, ...keys: string[]): number | null => {
+    for (const k of keys) {
+      const n = num(r[k]);
+      if (n != null) return n;
+    }
+    return null;
+  };
+
+  const gradeSet = new Set<number>();
+  const schools: AreaSchoolStudents[] = rows
+    .map((r) => {
+      const byGrade: Record<number, number> = {};
+      // 학교급(초 1~6 / 중·고 1~3)에 따라 채워지는 컬럼이 달라, 라벨 "N학년 학생수"를 일반 매칭하고
+      // 값>0만 채택한다(컬럼 ID 하드코딩 없이 어느 학교급이든 정확). 특수·순회 등 비학년은 제외됨.
+      if (STUDENT_LABELS) {
+        for (const [k, label] of Object.entries(STUDENT_LABELS)) {
+          const m = /(?:초등부|중등부|고등부)-([1-6])학년 학생수$/.exec(label);
+          if (!m) continue;
+          const v = num(r[k]);
+          if (v != null && v > 0) {
+            const g = Number(m[1]);
+            byGrade[g] = v;
+            gradeSet.add(g);
+          }
+        }
+      }
+      return {
+        name: String(r.SCHUL_NM ?? ""),
+        schoolCode: String(r.SCHUL_CODE ?? ""),
+        total: pick(r, "COL_S_SUM", "COL_SUM_S4"),
+        byGrade,
+        classes: pick(r, "COL_C_SUM", "COL_SUM_C4"),
+        perClass: pick(r, "COL_SUM", "COL_SUM_4"),
+        perTeacher: pick(r, "TEACH_CAL"),
+      };
+    })
+    .filter((s) => s.name && s.total != null);
+
+  schools.sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+  const grades = [...gradeSet].sort((a, b) => a - b);
+  return { sido: sido.name, sgg: sggInput, kind, year: y, grades, schools };
 }
 
 export async function getParentDigest(

@@ -226,6 +226,9 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .out table.wide th:first-child,.out table.wide td:first-child{position:sticky; left:0; z-index:1;}
   .out table.wide td:first-child{background:#0b0b0d; color:var(--ink); font-weight:600;}
   .out table.wide th:first-child{background:#151517;}
+  /* 비교표: 선택한 내 학교 행 강조 (sticky 첫 열 배경도 함께) */
+  .out table.wide tr.mine td{background:rgba(41,151,255,.16); color:#fff;}
+  .out table.wide tr.mine td:first-child{background:#13233a;}
   .scroll-hint{display:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
   /* 2열 항목·값 표(공시 다이제스트 등): 모바일에선 카드형 스택으로 가로스크롤 없이 */
   @media (max-width:560px){
@@ -477,6 +480,7 @@ function schoolCard(ctx, opts){
       + '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
       + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
       + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
       + hpBtn + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
@@ -537,6 +541,7 @@ document.addEventListener('click', (e) => {
   if (act === 'eval'){ rememberFrom(b); loadEval(ctxOf(b)); }
   else if (act === 'digest'){ rememberFrom(b); loadDigest(ctxOf(b)); }
   else if (act === 'schedule'){ rememberFrom(b); loadSchedule(ctxOf(b)); }
+  else if (act === 'compare'){ rememberFrom(b); loadCompare(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
   else if (act === 'home'){ openHomepage(ctxOf(b), b); }
@@ -730,6 +735,44 @@ function renderSchedule(d){
       + '<div class="out"><table class="sched"><tbody>'+rows+'</tbody></table></div>';
   }
   $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'+html+'</div>';
+  $('output').scrollIntoView({behavior:'smooth', block:'start'});
+}
+/* ── 주변 학교 학생수 비교 (같은 시군구·학교급) ── */
+async function loadCompare(ctx){
+  $('output').innerHTML = spinner('🏫 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학생수를 비교하는 중…');
+  try{
+    const r = await fetch('/api/compare?'+qp(ctx));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderCompare(ctx, d);
+  }catch(e){ $('output').innerHTML = info('비교 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+}
+function renderCompare(ctx, d){
+  const schools = d.schools || [];
+  const title = '🏫 '+h(d.sgg||ctx.sgg||'')+' '+h(d.kind||ctx.kind||'')+' 학생수 비교'+(d.year?' ('+h(d.year)+')':'');
+  if (!schools.length){
+    $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>'+title+'</h2></div>'
+      + '<p class="desc">'+h(d.note||'표시할 학교가 없습니다.')+'</p></div>';
+    $('output').scrollIntoView({behavior:'smooth', block:'start'}); return;
+  }
+  const grades = d.grades || [];
+  const myName = (ctx.name||'').replace(/\\s/g,'');
+  const fmt = (n)=> (n==null ? '—' : String(n));
+  const ths = ['학교','총학생수'].concat(grades.map(g=>g+'학년')).concat(['학급수','학급당','교사1인당']);
+  const thead = '<thead><tr>'+ths.map(t=>'<th>'+h(t)+'</th>').join('')+'</tr></thead>';
+  const tbody = schools.map((s,i)=>{
+    const mine = (s.name||'').replace(/\\s/g,'')===myName && myName;
+    const cells = ['<td>'+(i+1)+'. '+h(s.name)+(mine?' <b>★</b>':'')+'</td>', '<td>'+fmt(s.total)+'</td>']
+      .concat(grades.map(g=>'<td>'+fmt(s.byGrade ? (s.byGrade[g] ?? null) : null)+'</td>'))
+      .concat(['<td>'+fmt(s.classes)+'</td>','<td>'+fmt(s.perClass)+'</td>','<td>'+fmt(s.perTeacher)+'</td>']);
+    return '<tr'+(mine?' class="mine"':'')+'>'+cells.join('')+'</tr>';
+  }).join('');
+  const table = '<table class="wide">'+thead+'<tbody>'+tbody+'</tbody></table>';
+  const card = document.createElement('div'); card.className='card fade';
+  card.innerHTML = '<div class="result-head"><h2>'+title+'</h2></div>'
+    + '<p class="desc">같은 시군구 '+h(d.kind||ctx.kind||'')+' '+schools.length+'곳을 학생수 순으로 정리했어요. <b>★</b>는 선택한 학교.</p>'
+    + '<div class="out"><div class="tablewrap">'+table+'</div><div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div></div>';
+  $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 /* ── 핵심 공시 ── */

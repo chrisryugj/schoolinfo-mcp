@@ -144,26 +144,35 @@ export class SchoolInfoClient {
    * 특정 학교의 공시정보(특정 apiType)를 조회한다.
    * 해당 지역 전체를 받아 SCHUL_CODE로 필터한다.
    */
+  /**
+   * 지역(시도/시군구/학교급) 전체 학교의 apiType 행을 반환한다 (캐시).
+   * 학교알리미가 항목 조회 시 시군구 전체를 한 번에 주므로, 학교별 조회와 지역 비교가 이 list를 공유한다.
+   */
+  async getAreaDisclosure(
+    apiType: string,
+    sidoCode: string,
+    sggCode: string,
+    schulKndCode: string,
+    year?: string | number
+  ): Promise<Record<string, any>[]> {
+    const y = year ?? new Date().getFullYear();
+    // (지역+학교급+연도) 단위 캐시 — 같은 지역 다이제스트/비교 반복 시 적중. 연도는 해석값으로 키 정규화.
+    const cacheKey = `disc:${apiType}:${sidoCode}:${sggCode}:${schulKndCode}:${y}`;
+    let list = schoolCache.get<Record<string, any>[]>(cacheKey);
+    if (!list) {
+      const data = await this.request(apiType, { sidoCode, sggCode, schulKndCode, pbanYr: y });
+      list = data.list;
+      schoolCache.set(cacheKey, list);
+    }
+    return list;
+  }
+
   async getDisclosure(
     school: School,
     apiType: string,
     year?: string | number
   ): Promise<{ name: string; rows: Record<string, any>[] }> {
-    // 학교알리미는 지역 전체 list를 주므로 (지역+학교급+연도) 단위로 캐시하고 학교코드로 필터.
-    // → 같은 지역의 여러 학교/다이제스트 반복 항목에서 캐시 적중. 연도는 해석값으로 키 정규화.
-    const y = year ?? new Date().getFullYear();
-    const cacheKey = `disc:${apiType}:${school.sidoCode}:${school.sggCode}:${school.schulKndCode}:${y}`;
-    let list = schoolCache.get<Record<string, any>[]>(cacheKey);
-    if (!list) {
-      const data = await this.request(apiType, {
-        sidoCode: school.sidoCode,
-        sggCode: school.sggCode,
-        schulKndCode: school.schulKndCode,
-        pbanYr: y,
-      });
-      list = data.list;
-      schoolCache.set(cacheKey, list);
-    }
+    const list = await this.getAreaDisclosure(apiType, school.sidoCode, school.sggCode, school.schulKndCode, year);
     const rows = list.filter((r) => String(r.SCHUL_CODE ?? "") === school.schoolCode);
     return { name: API_TYPES[apiType] ?? apiType, rows };
   }

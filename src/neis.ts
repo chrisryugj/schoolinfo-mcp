@@ -51,8 +51,14 @@ export async function findNeisSchool(name: string, sidoName?: string): Promise<N
   if (!rows.length) return null;
   let cand = rows;
   if (sidoName) {
-    const key = sidoName.slice(0, 2); // "서울특별시" → "서울"
-    const filtered = rows.filter((x: any) => String(x.LCTN_SC_NM || "").startsWith(key));
+    // 전체 시도명으로 비교 (2글자 prefix는 경상북도/경상남도·충청북도/충청남도를 못 가림).
+    // 양쪽 앞 2글자로 느슨 비교해 "서울"↔"서울특별시" 약칭 차이는 흡수하되, 정식 도명은 끝까지 본다.
+    const norm = (v: string) => v.replace(/\s/g, "");
+    const key = norm(sidoName);
+    const filtered = rows.filter((x: any) => {
+      const lc = norm(String(x.LCTN_SC_NM || ""));
+      return lc === key || lc.startsWith(key) || key.startsWith(lc);
+    });
     if (filtered.length) cand = filtered;
   }
   const hit = cand.find((x: any) => x.SCHUL_NM === name) ?? cand[0];

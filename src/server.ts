@@ -273,10 +273,13 @@ const server = http.createServer(async (req, res) => {
           const ns = await findNeisSchool(school.name, sido);
           if (!ns) return json(res, 200, { school: school.name, items: [], note: "NEIS에서 해당 학교를 찾지 못했습니다." });
           const y = year ?? new Date().getFullYear();
-          const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}0228`);
+          const lastFeb = new Date(y + 1, 2, 0).getDate(); // 다음해 2월 말일(윤년 29 포함)
+          const items = await fetchSchedule(ns.atptCode, ns.schoolCode, `${y}0301`, `${y + 1}02${lastFeb}`);
           return json(res, 200, { school: school.name, year: y, items });
         } catch (e: any) {
-          return json(res, 200, { school: school.name, items: [], note: `학사일정 조회 실패: ${e.message}` });
+          // 상세는 로그에만, 사용자에겐 일반 문구 (전역 catch와 동일한 정보-비노출 정책)
+          console.error("[schedule]", e?.message ?? e);
+          return json(res, 200, { school: school.name, items: [], note: "학사일정을 일시적으로 가져오지 못했습니다." });
         }
       }
 

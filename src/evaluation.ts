@@ -379,19 +379,22 @@ function isSubjectDetailTable(tableHtml: string): boolean {
   return /성취\s*기준/.test(plainText(firstRow));
 }
 
-/** 텍스트에서 교과명 탐지 (긴 이름 우선) */
+/** 텍스트에서 교과명 탐지 — 단어 경계 기반(부분일치 오탐 방지) */
 function subjectInText(text: string): string | null {
-  const c = text.replace(/\s/g, "").replace(/·/g, "ㆍ");
   for (const s of SUBJECTS) {
-    const k = s.replace(/\s/g, "").replace(/·/g, "ㆍ");
-    if (c.includes(k)) return s;
+    const pat = s.replace(/[·ㆍ]/g, "[·ㆍ]").replace(/\s+/g, "\\s*");
+    // 앞: 시작/비한글, 뒤: 끝/(과)?/비한글. 단 합성 구분자(·ㆍ)는 경계로 인정하지 않아
+    // '사회·문화'→'사회', '과학사'→'과학' 같은 부분일치 오탐을 차단한다.
+    const re = new RegExp(`(?:^|[^가-힣])${pat}(?:과)?(?:$|[^가-힣ㆍ·])`);
+    if (re.test(text)) return s;
   }
   return null;
 }
 
 /** 성취기준 코드([9국05-01]) 약자 최빈값으로 교과 추정 */
 function subjectByCode(tableHtml: string): string | null {
-  const codes = [...tableHtml.matchAll(/\[9\s*([가-힣]{1,3})\d/g)].map((m) => m[1]);
+  // 성취기준 코드 학교급 prefix를 모두 인식: 초[4/6]·중[9]·고[10/12]
+  const codes = [...tableHtml.matchAll(/\[\d{1,2}\s*([가-힣]{1,3})\d/g)].map((m) => m[1]);
   const freq: Record<string, number> = {};
   for (const c of codes) {
     const s = CRITERIA_ABBR[c];
@@ -417,10 +420,15 @@ function attachSubjectDetails(markdown: string, grades: GradeOverview[]): void {
   for (const { html, index } of topLevelTables(markdown)) {
     const between = plainText(markdown.slice(lastIdx, index));
     lastIdx = index + html.length;
+    // 본문 각주('2학년 때 이수' 등)의 'N학년' 오인 방지: 종합표로 구조화된 학년만 채택
     const gm = [...between.matchAll(/([1-6])\s*학년/g)];
-    if (gm.length) curGrade = Number(gm[gm.length - 1][1]);
+    for (let i = gm.length - 1; i >= 0; i--) {
+      const g = Number(gm[i][1]);
+      if (byGrade.has(g)) { curGrade = g; break; }
+    }
+    // 캡션은 '운영 계획' 뒤 전체에서 탐지 (좁은 윈도우는 캡션이 표보다 멀 때 놓침)
     const capPart = between.split(/운영\s*계획/).pop() || between;
-    const subj = subjectInText(capPart.slice(-50)) || subjectInText(between.slice(-50));
+    const subj = subjectInText(capPart);
     if (subj) curSubject = subj;
     if (!isSubjectDetailTable(html)) continue;
     const useSubj = subjectByCode(html) || curSubject;
@@ -484,53 +492,69 @@ function expandRowspanCells(tableHtml: string): string {
     colspan: number;
     rowspan: number;
   }
+  // 셀 안 중첩 <table>이 있으면 non-greedy 정규식이 안쪽 </tr>/</td>에서 조기 매칭해
+  // 바깥 셀이 잘리고 마크업이 깨진다 → 변형 없이 원본 유지 (정렬 위험보다 무손상 우선)
+  if ((tableHtml.match(/<table/gi) || []).length > 1) return tableHtml;
+
   const trRe = /<tr(\s[^>]*)?>([\s\S]*?)<\/tr>/gi;
   const cellRe = /<(t[dh])([^>]*)>([\s\S]*?)<\/t[dh]>/gi;
   const numAttr = (s: string, name: string): number => {
     const m = new RegExp(name + '=["\']?(\\d+)', "i").exec(s);
     return m ? Math.max(1, parseInt(m[1], 10)) : 1;
   };
-  const rows = [...tableHtml.matchAll(trRe)];
-  if (!rows.length) return tableHtml;
+  const rawRows = [...tableHtml.matchAll(trRe)];
+  if (!rawRows.length) return tableHtml;
+  const rows = rawRows.map((r) => {
+    const cells: Cell[] = [...r[2].matchAll(cellRe)].map((c) => ({
+      tag: c[1], attrs: c[2] || "", html: c[3],
+      colspan: numAttr(c[2] || "", "colspan"), rowspan: numAttr(c[2] || "", "rowspan"),
+    }));
+    const isHeader = cells.length > 0 && cells.every((c) => c.tag.toLowerCase() === "th");
+    return { attr: r[1] || "", cells, isHeader };
+  });
+  const dataStart = rows.findIndex((r) => !r.isHeader);
+  if (dataStart < 0) return tableHtml; // 데이터 행이 없으면 펼칠 것 없음
+
+  const stripRs = (a: string) => a.replace(/\s*rowspan=["']?\d+["']?/i, "");
+  const setRs = (a: string, n: number) =>
+    /rowspan=/i.test(a) ? a.replace(/rowspan=["']?\d+["']?/i, `rowspan="${n}"`) : `${a} rowspan="${n}"`;
+  const tag = (c: Cell, attrs: string) => `<${c.tag}${attrs}>${c.html}</${c.tag}>`;
 
   // pending[col] = 위 행에서 내려오는 rowspan 셀 (시작 컬럼에만 보관)
   const pending: ({ cell: Cell; left: number } | null)[] = [];
-  const stripRs = (a: string) => a.replace(/\s*rowspan=["']?\d+["']?/i, "");
   const outTrs: string[] = [];
 
-  for (const r of rows) {
-    const attr = r[1] || "";
-    const inner = r[2];
-    const cells: Cell[] = [...inner.matchAll(cellRe)].map((c) => ({
-      tag: c[1],
-      attrs: c[2] || "",
-      html: c[3],
-      colspan: numAttr(c[2] || "", "colspan"),
-      rowspan: numAttr(c[2] || "", "rowspan"),
-    }));
-    // 헤더(th만) 행은 항상 표시되므로 정렬 영향 없음 → 원본 유지
-    const isHeader = cells.length > 0 && cells.every((c) => c.tag.toLowerCase() === "th");
-    if (isHeader) {
-      outTrs.push(`<tr${attr}>${inner}</tr>`);
-      continue;
-    }
+  for (let ri = 0; ri < rows.length; ri++) {
+    const { attr, cells, isHeader } = rows[ri];
     const out: string[] = [];
-    const emit = (c: Cell) => out.push(`<${c.tag}${stripRs(c.attrs)}>${c.html}</${c.tag}>`);
-    let col = 0;
-    let ci = 0;
-    let guard = 0;
-    while (guard++ < 2000) {
+    let col = 0, ci = 0, guard = 0;
+    while (guard++ < 3000) {
       const p = pending[col];
       if (p && p.left > 0) {
-        emit(p.cell); // 위에서 내려온 rowspan 셀을 이 행에 복제
+        // 위에서 내려온 셀: 데이터 행이면 복제(정렬 유지), 헤더 행이면 병합 유지(출력 생략)
+        if (!isHeader) out.push(tag(p.cell, stripRs(p.cell.attrs)));
         p.left--;
         col += p.cell.colspan;
         continue;
       }
       if (ci < cells.length) {
         const c = cells[ci++];
-        emit(c);
-        pending[col] = c.rowspan > 1 ? { cell: c, left: c.rowspan - 1 } : null;
+        if (isHeader) {
+          const endRow = ri + c.rowspan - 1;
+          if (c.rowspan > 1 && endRow >= dataStart) {
+            // 헤더 셀이 데이터 행까지 걸침 → 헤더 출력은 헤더 영역까지로 클램프, 초과분은 데이터에 복제
+            const headerRows = dataStart - ri;
+            out.push(tag(c, headerRows > 1 ? setRs(c.attrs, headerRows) : stripRs(c.attrs)));
+            pending[col] = { cell: c, left: endRow - (dataStart - 1) };
+          } else {
+            // 헤더 내부 rowspan(다른 헤더 행 덮음) 또는 단일 행 → 원본 유지, 헤더 영역에서 소비
+            out.push(tag(c, c.attrs));
+            pending[col] = c.rowspan > 1 ? { cell: c, left: c.rowspan - 1 } : null;
+          }
+        } else {
+          out.push(tag(c, stripRs(c.attrs)));
+          pending[col] = c.rowspan > 1 ? { cell: c, left: c.rowspan - 1 } : null;
+        }
         col += c.colspan;
         continue;
       }
@@ -538,10 +562,7 @@ function expandRowspanCells(tableHtml: string): string {
       let next = -1;
       for (let cc = col; cc < pending.length; cc++) {
         const pc = pending[cc];
-        if (pc && pc.left > 0) {
-          next = cc;
-          break;
-        }
+        if (pc && pc.left > 0) { next = cc; break; }
       }
       if (next < 0) break;
       col = next;

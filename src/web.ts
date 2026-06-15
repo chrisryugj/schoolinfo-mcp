@@ -115,7 +115,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .eyebrow .pulse{width:6px; height:6px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 0 rgba(41,151,255,.5); animation:pulse 2.2s infinite;}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(41,151,255,.5)} 70%{box-shadow:0 0 0 8px transparent} 100%{box-shadow:0 0 0 0 transparent}}
   h1.display{
-    margin:0 0 18px; font-size:clamp(34px,7.6vw,58px); line-height:1.04; font-weight:800; letter-spacing:-0.042em;
+    margin:0 0 18px; font-size:clamp(30px,7.6vw,58px); line-height:1.05; font-weight:800; letter-spacing:-0.042em;
   }
   h1.display .grad{background:linear-gradient(180deg,#fff 0%,#9b9ba1 130%); -webkit-background-clip:text; background-clip:text; color:transparent;}
   h1.display .accent{color:var(--blue);}
@@ -175,12 +175,12 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .recent .head a:hover{color:#fff;}
   .recent .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 2px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .recent .chips::-webkit-scrollbar{display:none;}
-  .recent .chip{display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; max-width:80vw; white-space:nowrap;
+  .recent .chip{display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; max-width:80vw; white-space:nowrap; overflow:hidden;
     background:rgba(255,255,255,.04); border:1px solid var(--hair-strong); border-radius:999px;
     padding:8px 8px 8px 15px; font-size:14px; color:var(--ink); cursor:pointer; transition:background .2s, transform .08s;}
   .recent .chip:hover{background:rgba(255,255,255,.08);}
   .recent .chip:active{transform:scale(.97);}
-  .recent .chip b{font-weight:600; overflow:hidden; text-overflow:ellipsis;}
+  .recent .chip b{font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis;}
   .recent .chip .x{display:flex; width:22px; height:22px; align-items:center; justify-content:center; border-radius:50%; background:var(--bg2); color:var(--ink-dim); font-size:12px; line-height:1;}
   .recent .chip .x:hover{color:#fff;}
 
@@ -200,6 +200,9 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .dls{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 4px;}
   /* 다운로드 버튼: 파일명이 길어도 카드 밖으로 넘치지 않게 줄바꿈 허용 + 폭 제한 */
   .dls .btn{max-width:100%; min-width:0; white-space:normal; word-break:break-word; text-align:left; justify-content:flex-start; line-height:1.35;}
+  /* 평가계획 과목 선택: 긴 파일명 버튼은 한 줄 전체 차지(줄바꿈 허용), 원본 다운로드는 아래 줄로 */
+  .evalpick{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0;}
+  .evalpick .pick{flex:1 1 100%; min-width:0; white-space:normal; word-break:break-word; text-align:left; justify-content:flex-start; line-height:1.35;}
   .out{margin-top:10px; font-size:15px; color:var(--ink-dim);}
   .out :first-child{margin-top:0;}
   .out h2{font-size:19px; color:#fff; margin:24px 0 8px; letter-spacing:-0.02em;}
@@ -235,14 +238,39 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     .out table.kv td:first-child{color:var(--ink-dim); flex:1 1 auto; min-width:0;}
     .out table.kv td:last-child{color:#fff; font-weight:600; text-align:right; flex:0 0 auto; max-width:58%; word-break:break-word;}
     .scroll-hint{display:block;}
+    /* 좁은 폭: wide표 sticky 첫 열이 긴 한글이면 본문을 가리므로 첫 열만 폭 제한+줄바꿈 (나머지 셀은 nowrap 유지) */
+    .out table.wide th:first-child,.out table.wide td:first-child{max-width:42vw; white-space:normal; word-break:keep-all; overflow-wrap:anywhere;}
   }
 
   /* ===== State / spinner ===== */
   .state{font-size:15px; color:var(--ink-dim); display:flex; align-items:center; gap:10px;}
+  /* 설명 문단: state(flex)와 달리 인라인 <b> 등을 한 줄로 흐르게 (flex면 글자 단위로 쪼개짐) */
+  .desc{font-size:15px; color:var(--ink-dim); line-height:1.55; margin:0 0 8px;}
+  .desc b{color:#fff;}
   .spinner{width:17px; height:17px; border:2px solid var(--hair-strong); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; flex:0 0 auto;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .fade{animation:fade .4s ease;}
   @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  /* ===== Modal (전체 원문 보기) ===== */
+  .modal-bg{position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.62);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    display:flex; align-items:flex-end; justify-content:center; padding:0;}
+  .modal{background:var(--surface); border:1px solid var(--hair-strong); border-radius:18px 18px 0 0;
+    width:100%; max-width:720px; max-height:90vh; display:flex; flex-direction:column; animation:slideup .28s ease;}
+  @keyframes slideup{from{transform:translateY(28px);} to{transform:none;}}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:15px 18px; border-bottom:1px solid var(--hair); flex:0 0 auto;}
+  .modal-head h3{margin:0; font-size:15px; font-weight:700; letter-spacing:-0.01em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .modal-x{flex:0 0 auto; width:32px; height:32px; border-radius:50%; border:1px solid var(--hair-strong);
+    background:rgba(255,255,255,.04); color:var(--ink-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; -webkit-tap-highlight-color:transparent;}
+  .modal-x:hover{color:#fff; background:rgba(255,255,255,.08);}
+  .modal-body{padding:16px 18px calc(env(safe-area-inset-bottom) + 22px); overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0;}
+  body.no-scroll{overflow:hidden;}
+  @media (min-width:560px){
+    .modal-bg{align-items:center; padding:24px;}
+    .modal{border-radius:18px; max-height:85vh;}
+  }
 
   /* ===== Disclosure section ===== */
   .section{padding:40px 0 8px; border-top:1px solid var(--hair); margin-top:30px;}
@@ -278,9 +306,9 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== 학년/과목 필터 칩 (structured 평가표) ===== */
   .filters{display:flex; flex-direction:column; gap:11px; margin:16px 0 10px;}
-  .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center;}
+  .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center; min-width:0;}
   .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
-  .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:rgba(255,255,255,.03); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:nowrap; font-family:inherit;}
+  .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:rgba(255,255,255,.03); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
   .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:#fff; letter-spacing:-0.01em;}
   table.sched{width:100%; border-collapse:collapse;}
   table.sched td{padding:8px 4px; border-bottom:1px solid var(--hair); font-size:14px; vertical-align:top; line-height:1.45;}
@@ -564,13 +592,13 @@ async function loadEval(ctx, seq, year){
       const yr = d.year ? ' data-year="'+h(d.year)+'"' : '';
       const rows = d.files.map(f => {
         const label = f.filename.replace(/\\.(pdf|hwpx?|docx|xlsx)$/i,'');
-        return '<div class="acts" style="margin:8px 0">'
-          + '<button class="btn btn-soft btn-sm" data-act="evalSeq" data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'" data-seq="'+h(f.seq)+'"'+yr+'>'+h(label)+'</button>'
+        return '<div class="evalpick">'
+          + '<button class="btn btn-soft btn-sm pick" data-act="evalSeq" data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'" data-seq="'+h(f.seq)+'"'+yr+'>'+h(label)+'</button>'
           + '<a class="btn btn-line btn-sm" href="'+h(dlUrl(ctx, f.seq, d.year))+'" download>⬇︎ 원본'+(f.sizeKB?' ('+f.sizeKB+'KB)':'')+'</a>'
           + '</div>';
       }).join('');
       $('output').innerHTML = '<div class="card fade"><div class="result-head"><h2>📋 '+h(d.school)+'</h2></div>'
-        + '<p class="state">과목별로 평가계획이 나뉘어 있어요. 과목을 누르면 표로 보여주고, <b>원본</b>도 받을 수 있어요.</p>'
+        + '<p class="desc">과목별로 평가계획이 나뉘어 있어요. 과목을 누르면 표로 보여주고, <b>원본</b>도 받을 수 있어요.</p>'
         + rows
         + '<div style="margin-top:6px"><button class="btn btn-primary btn-sm" data-act="evalAll" data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'"'+yr+'>📚 전체 한꺼번에 보기</button></div></div>';
       $('output').scrollIntoView({behavior:'smooth', block:'start'});
@@ -588,7 +616,9 @@ function renderStructured(ctx, d){
   const grades = (d.grades||[]).filter(g => g && g.tableHtml);
   if (!grades.length){ $('output').innerHTML = info('표시할 평가표를 찾지 못했어요. 원본을 받아 확인해 주세요.'); return; }
   let gi = 0, subj = '전체';
-  const head = '<div class="result-head"><h2>📋 '+h(d.school)+' 수행평가 계획</h2></div>' + downloadBar(ctx, d.downloads, d.year);
+  // 파싱된 전체 원문이 오면 hwp 다운로드 없이 모달로 인앱 열람
+  const fullDocBtn = d.markdown ? '<div class="acts" style="margin-top:8px"><button class="btn btn-soft btn-sm" data-fulldoc="1">📄 전체 평가계획 원문 보기</button></div>' : '';
+  const head = '<div class="result-head"><h2>📋 '+h(d.school)+' 수행평가 계획</h2></div>' + downloadBar(ctx, d.downloads, d.year) + fullDocBtn;
   const card = document.createElement('div'); card.className='card fade';
   $('output').innerHTML=''; $('output').appendChild(card);
 
@@ -611,13 +641,24 @@ function renderStructured(ctx, d){
     if (subj === '전체'){ box.innerHTML = ''; return; }
     const html = (grades[gi].details || {})[subj];
     if (!html){
-      box.innerHTML = '<p class="state" style="margin-top:16px">' + h(subj) + ' 상세 평가표(성취기준)는 원본 파일에서 확인해 주세요.</p>';
+      // 이 문서엔 과목별 성취기준 상세표가 따로 없을 수 있음(종합표가 평가 내용 전부). 막다른 안내 대신 종합표/전체원문으로 유도.
+      box.innerHTML = '<p class="desc" style="margin-top:16px">' + h(subj) + '의 평가요소·반영비율은 위 종합표에 정리돼 있어요.'
+        + (d.markdown ? ' 더 자세한 내용은 위 <b>📄 전체 평가계획 원문 보기</b>에서 확인할 수 있어요.' : '') + '</p>';
       return;
     }
-    box.innerHTML = '<div class="detail-head">📑 ' + h(subj) + ' 성취기준·평가기준</div>'
-      + '<div class="tablewrap"><div class="out" id="stDetailTbl">' + safeHtml(html) + '</div></div>'
-      + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>';
-    box.querySelectorAll('#stDetailTbl table').forEach(t => t.classList.add('wide'));
+    box.innerHTML = '<div class="detail-head">📑 ' + h(subj) + ' 성취기준·평가기준</div><div class="out" id="stDetailTbl"></div>';
+    const dt = box.querySelector('#stDetailTbl');
+    dt.innerHTML = safeHtml(html);
+    // render()와 동일하게 열 수로 wide/kv 분기 — 2열 서술형 표가 nowrap으로 가로폭주하지 않게
+    dt.querySelectorAll('table').forEach(t => {
+      let cols=0; for (const r of t.rows) cols=Math.max(cols, r.cells.length);
+      if (cols>2){
+        t.classList.add('wide');
+        const w=document.createElement('div'); w.className='tablewrap'; t.parentNode.insertBefore(w,t); w.appendChild(t);
+        const hint=document.createElement('div'); hint.className='scroll-hint'; hint.textContent='← 성취기준 표를 좌우로 →';
+        w.parentNode.insertBefore(hint, w.nextSibling);
+      } else { t.classList.add('kv'); }
+    });
   };
   const draw = () => {
     card.innerHTML = head
@@ -635,6 +676,7 @@ function renderStructured(ctx, d){
     drawDetail();
   };
   card.addEventListener('click', (e) => {
+    if (e.target.closest('[data-fulldoc]')){ openModal('📄 '+h(d.school)+' 평가계획 원문', mdToOut(d.markdown)); return; }
     const gb = e.target.closest('[data-g]');
     if (gb){ gi = +gb.getAttribute('data-g'); subj = '전체'; draw(); return; }
     const sb = e.target.closest('[data-s]');
@@ -701,10 +743,10 @@ async function loadDigest(ctx){
   }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
 }
 
-function render(titleHtml, md, dlHtml){
-  // 마크다운 렌더 후 표를 모바일 가독성에 맞게 가공:
-  //  - 2열(항목·값)  → kv: 모바일에서 카드형 스택 (가로스크롤 없이)
-  //  - 3열 이상(수행평가) → wide: 가로 스크롤 래퍼 + 첫 열 고정 + 넘김 힌트
+// 마크다운 → .out 컨테이너(표 모바일 가공 포함). render()와 모달이 공용.
+//  - 2열(항목·값)  → kv: 모바일 카드형 스택 (가로스크롤 없이)
+//  - 3열 이상      → wide: 가로 스크롤 래퍼 + 첫 열 고정 + 넘김 힌트
+function mdToOut(md){
   const wrap = document.createElement('div'); wrap.className='out'; wrap.innerHTML = safeMd(md);
   wrap.querySelectorAll('table').forEach(t => {
     let cols = 0; for (const r of t.rows) cols = Math.max(cols, r.cells.length);
@@ -718,12 +760,34 @@ function render(titleHtml, md, dlHtml){
       t.classList.add('kv');
     }
   });
+  return wrap;
+}
+function render(titleHtml, md, dlHtml){
   const card = document.createElement('div'); card.className='card fade';
   card.innerHTML = '<div class="result-head"><h2>'+titleHtml+'</h2></div>' + (dlHtml||'');
-  card.appendChild(wrap);
+  card.appendChild(mdToOut(md));
   $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
+
+/* ── 모달 (전체 원문 등) ── */
+function openModal(titleHtml, contentEl){
+  closeModal();
+  const bg = document.createElement('div'); bg.className='modal-bg'; bg.id='modalBg';
+  const m = document.createElement('div'); m.className='modal';
+  const head = document.createElement('div'); head.className='modal-head';
+  head.innerHTML = '<h3>'+titleHtml+'</h3>';
+  const x = document.createElement('button'); x.type='button'; x.className='modal-x'; x.setAttribute('aria-label','닫기'); x.textContent='✕';
+  head.appendChild(x);
+  const body = document.createElement('div'); body.className='modal-body';
+  if (typeof contentEl === 'string') body.innerHTML = contentEl; else body.appendChild(contentEl);
+  m.appendChild(head); m.appendChild(body); bg.appendChild(m);
+  document.body.appendChild(bg); document.body.classList.add('no-scroll');
+  x.onclick = closeModal;
+  bg.addEventListener('click', (e) => { if (e.target === bg) closeModal(); });
+}
+function closeModal(){ const bg=$('modalBg'); if(bg) bg.remove(); document.body.classList.remove('no-scroll'); }
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
 /* ── 최근 본 학교 (localStorage) ── */
 function loadRecent(){ try{ return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]'); }catch{ return []; } }

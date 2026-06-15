@@ -98,6 +98,14 @@ function sanitizeFilename(name: string): string {
 
 /** 폴백 doc 마크다운 상한 — 구조화 실패 문서가 모바일 DOM을 폭주시키지 않게 (초과분은 원본 다운로드로 유도) */
 const DOC_MD_CAP = 100_000;
+/** 구조화 성공 시에도 '전체 원문 보기' 모달용으로 함께 보내는 파싱 원문 상한 */
+const MODAL_MD_CAP = 120_000;
+
+/** 모달 '전체 원문'용 마크다운 — 상한 초과 시 잘라 원본 다운로드로 유도 */
+function modalMarkdown(md: string): string {
+  if (md.length <= MODAL_MD_CAP) return md;
+  return md.slice(0, MODAL_MD_CAP) + "\n\n> ⚠️ 문서가 길어 일부만 표시했습니다. 전체는 위의 **원본 다운로드**로 확인하세요.";
+}
 
 /**
  * 구조화 실패(통합형 아님/초등 등) 시 보내는 doc 마크다운.
@@ -357,6 +365,8 @@ const server = http.createServer(async (req, res) => {
                 grades: structured.grades,
                 allSubjects: structured.allSubjects,
                 downloads,
+                // '전체 원문 보기' 모달용 파싱 원문 (hwp 다운로드 없이 인앱 열람)
+                markdown: modalMarkdown(r.markdown),
               });
             }
             // 구조화 실패 → 슬림 doc (클라가 점진 렌더)

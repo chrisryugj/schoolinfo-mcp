@@ -274,6 +274,15 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .chip.pink{color:var(--pink); border-color:rgba(255,55,95,.28); background:rgba(255,55,95,.08);}
   .chip.yellow{color:var(--yellow); border-color:rgba(255,214,10,.28); background:rgba(255,214,10,.08);}
 
+  /* ===== 학년/과목 필터 칩 (structured 평가표) ===== */
+  .filters{display:flex; flex-direction:column; gap:11px; margin:16px 0 10px;}
+  .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center;}
+  .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:rgba(255,255,255,.03); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:nowrap; font-family:inherit;}
+  .fchip:hover{color:#fff; background:rgba(255,255,255,.07);}
+  .fchip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent);}
+  .fchip.sub[aria-pressed="true"]{background:rgba(41,151,255,.18); color:var(--blue); border-color:rgba(41,151,255,.45);}
+
   /* ===== Reveal on scroll ===== */
   .reveal{opacity:0; transform:translateY(20px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);}
   .reveal.in{opacity:1; transform:none;}
@@ -393,6 +402,8 @@ function safeMd(md){
   const html = (window.marked ? marked.parse(md) : h(md).replace(/\\n/g,'<br>'));
   return (window.DOMPurify ? DOMPurify.sanitize(html, {ADD_TAGS:['details','summary']}) : h(md));
 }
+/* structured 평가표는 이미 HTML(<table>) — marked 없이 정제만. data-* 속성은 DOMPurify 기본 허용. */
+function safeHtml(html){ return window.DOMPurify ? DOMPurify.sanitize(String(html||'')) : ''; }
 function spinner(text){ return '<div class="card state fade"><span class="spinner"></span><span>'+text+'</span></div>'; }
 function info(text){ return '<div class="card state fade">'+text+'</div>'; }
 
@@ -556,8 +567,59 @@ async function loadEval(ctx, seq, year){
       $('output').scrollIntoView({behavior:'smooth', block:'start'});
       return;
     }
+    if (d.mode === 'structured'){ renderStructured(ctx, d); return; }
     render('📋 '+h(d.school)+' 수행평가 계획', d.markdown, downloadBar(ctx, d.downloads, d.year));
   }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+}
+
+/* ── 학년/과목 선택 평가표 (통합형 학교) ──
+   거대한 전체 문서를 한꺼번에 그리지 않고, 학년 종합표(작음)만 받아 선택한 학년/과목만 렌더.
+   과목 칩은 표의 data-subject 행을 토글한다(다시 다운로드/파싱하지 않음). */
+function renderStructured(ctx, d){
+  const grades = (d.grades||[]).filter(g => g && g.tableHtml);
+  if (!grades.length){ $('output').innerHTML = info('표시할 평가표를 찾지 못했어요. 원본을 받아 확인해 주세요.'); return; }
+  let gi = 0, subj = '전체';
+  const head = '<div class="result-head"><h2>📋 '+h(d.school)+' 수행평가 계획</h2></div>' + downloadBar(ctx, d.downloads, d.year);
+  const card = document.createElement('div'); card.className='card fade';
+  $('output').innerHTML=''; $('output').appendChild(card);
+
+  const gradeChips = () => grades.map((g,i) =>
+    '<button class="fchip" data-g="'+i+'" aria-pressed="'+(i===gi)+'">'+h(g.label||('표 '+(i+1)))+'</button>').join('');
+  const subjChips = () => {
+    const subs = grades[gi].subjects || [];
+    return ['<button class="fchip sub" data-s="전체" aria-pressed="'+(subj==='전체')+'">전체</button>']
+      .concat(subs.map(s => '<button class="fchip sub" data-s="'+h(s)+'" aria-pressed="'+(subj===s)+'">'+h(s)+'</button>')).join('');
+  };
+  const applyFilter = (t) => {
+    t.querySelectorAll('tr[data-subject]').forEach(r => {
+      r.style.display = (subj==='전체' || r.getAttribute('data-subject')===subj) ? '' : 'none';
+    });
+  };
+  const draw = () => {
+    card.innerHTML = head
+      + '<div class="filters">'
+      + (grades.length>1 ? '<div class="frow"><span class="flabel">학년</span>'+gradeChips()+'</div>' : '')
+      + '<div class="frow"><span class="flabel">과목</span>'+subjChips()+'</div>'
+      + '</div>'
+      + '<div class="tablewrap"><div class="out" id="stTable"></div></div>'
+      + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>';
+    const out = card.querySelector('#stTable');
+    out.innerHTML = safeHtml(grades[gi].tableHtml);
+    const t = out.querySelector('table');
+    if (t){ t.classList.add('wide'); applyFilter(t); }
+  };
+  card.addEventListener('click', (e) => {
+    const gb = e.target.closest('[data-g]');
+    if (gb){ gi = +gb.getAttribute('data-g'); subj = '전체'; draw(); return; }
+    const sb = e.target.closest('[data-s]');
+    if (sb){
+      subj = sb.getAttribute('data-s');
+      card.querySelectorAll('[data-s]').forEach(x => x.setAttribute('aria-pressed', String(x.getAttribute('data-s')===subj)));
+      const t = card.querySelector('#stTable table'); if (t) applyFilter(t);
+    }
+  });
+  draw();
+  $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 async function loadAllEval(ctx, year){
   $('output').innerHTML = spinner('📚 '+h(ctx.name)+' 전체 과목을 가져오는 중… (과목 수만큼 시간이 걸려요)');

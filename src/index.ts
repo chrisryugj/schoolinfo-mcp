@@ -18,6 +18,7 @@ export {
   evaluationGuide,
   parseEvaluationDocument,
   extractEvaluationSections,
+  structureEvaluation,
   autoFetchEvaluation,
   listEvaluationDocs,
   fetchEvaluationBySeq,
@@ -25,7 +26,7 @@ export {
   downloadEvaluationFile,
   DISCLOSURE_PORTAL,
 } from "./evaluation.js";
-export type { EvaluationResult, EvaluationFile } from "./evaluation.js";
+export type { EvaluationResult, EvaluationFile, GradeOverview, StructuredEvaluation } from "./evaluation.js";
 
 import { SchoolInfoClient, School } from "./client.js";
 import { API_TYPES } from "./codes.js";

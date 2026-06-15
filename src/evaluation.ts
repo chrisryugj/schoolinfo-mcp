@@ -344,6 +344,134 @@ export function extractEvaluationSections(markdown: string): string[] {
   return hits;
 }
 
+// ─── 학년별 종합 평가표 구조화 (통합 1파일 학교용) ───────────────────────────
+//
+// 통합형 학교(전학년·전과목 한 파일)는 변환 마크다운이 수백 KB·표 수백 개라
+// 통째로 렌더하면 모바일이 죽는다. kordoc 변환물엔 #헤딩이 없고 <table>로만 구성되므로,
+// "학년 종합표"(한 학년 전과목 요약표)를 찾아 학년 라벨·교과를 뽑아낸다.
+// 웹앱은 이 구조로 학년/과목 단위만 선택 렌더 → 거대 DOM 일괄 생성을 피한다.
+
+// 교과명 (긴 이름 우선 매칭: "기술ㆍ가정"이 "기술"보다 먼저 잡혀야 함)
+const SUBJECTS = [
+  "과학탐구실험", "기술ㆍ가정", "진로와 직업", "제2외국어", "통합사회", "통합과학",
+  "국어", "도덕", "사회", "역사", "수학", "과학", "기술", "가정", "정보",
+  "체육", "음악", "미술", "영어", "한문", "일본어", "중국어", "진로", "보건", "환경",
+].sort((a, b) => b.length - a.length);
+
+export interface GradeOverview {
+  grade: number | null; // 1~6 (매핑 실패 시 null)
+  label: string;        // 화면 라벨 (예: "1학년")
+  subjects: string[];   // 이 종합표에서 추출된 교과 (등장 순서)
+  tableHtml: string;    // 종합표 HTML (각 교과 행에 data-subject 주입됨)
+}
+
+export interface StructuredEvaluation {
+  grades: GradeOverview[];
+  allSubjects: string[];
+}
+
+function plainText(s: string): string {
+  return s.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+/** 셀 텍스트가 교과명이면 정규 교과명 반환 (공백·중점 변형 흡수) */
+function matchSubject(cell: string): string | null {
+  const c = cell.replace(/\s/g, "").replace(/·/g, "ㆍ");
+  for (const s of SUBJECTS) {
+    const k = s.replace(/\s/g, "").replace(/·/g, "ㆍ");
+    if (c === k || c === k + "과") return s;
+  }
+  return null;
+}
+
+/** 중첩을 고려해 최상위 <table>…</table> 블록만 추출 (위치 포함) */
+function topLevelTables(md: string): { html: string; index: number }[] {
+  const out: { html: string; index: number }[] = [];
+  const re = /<\/?table[^>]*>/gi;
+  let depth = 0, start = -1, m: RegExpExecArray | null;
+  while ((m = re.exec(md))) {
+    if (m[0][1] !== "/") {
+      if (depth === 0) start = m.index;
+      depth++;
+    } else if (depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        out.push({ html: md.slice(start, m.index + m[0].length), index: start });
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
+/** 종합표의 각 교과 행에 data-subject 속성을 주입하고 교과 순서를 수집 */
+function annotateSubjectRows(tableHtml: string): { html: string; subjects: string[] } {
+  const subjects: string[] = [];
+  const seen = new Set<string>();
+  const html = tableHtml.replace(/<tr(\s[^>]*)?>([\s\S]*?)<\/tr>/gi, (full, attr, inner) => {
+    const cells = [...inner.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((c) => plainText(c[1]));
+    let subj: string | null = null;
+    for (const c of cells) {
+      const hit = matchSubject(c);
+      if (hit) { subj = hit; break; }
+    }
+    if (!subj) return full;
+    if (!seen.has(subj)) { seen.add(subj); subjects.push(subj); }
+    return `<tr data-subject="${subj}"${attr || ""}>${inner}</tr>`;
+  });
+  return { html, subjects };
+}
+
+/** 종합표 직전 텍스트에서 학년 라벨 추론 */
+function gradeBefore(md: string, index: number): { grade: number | null; label: string } {
+  const before = plainText(md.slice(Math.max(0, index - 400), index));
+  // "N학년 (교과별) 평가/운영 계획" 형태 캡션 우선 (가장 표에 가까운 매칭)
+  const cap = [...before.matchAll(/([1-6])\s*학년[^0-9]{0,10}(?:평가|운영)/g)];
+  if (cap.length) {
+    const g = Number(cap[cap.length - 1][1]);
+    return { grade: g, label: `${g}학년` };
+  }
+  return { grade: null, label: "" };
+}
+
+/** 평가표 내용을 담은 표인지 (편제·시수표 등 비평가표 제외) */
+function looksLikeEvalTable(tableHtml: string): boolean {
+  // 자유학기제 1학년처럼 "과정 중심 평가 내용"만 있는 표도 평가표로 인정.
+  // 편제·시수표엔 이런 평가 어휘가 없어 자연히 걸러진다.
+  return /수행평가|반영\s*비율|정기시험|평가\s*요소|평가\s*방법|평가\s*영역|평가\s*기준|평가\s*내용|과정\s*중심\s*평가/.test(
+    tableHtml
+  );
+}
+
+/**
+ * 통합형 평가계획 마크다운을 학년별 종합표로 구조화한다.
+ * 학년이 매핑된 종합표가 1개 이상일 때만 결과를 반환(아니면 null → 호출부가 폴백 렌더).
+ */
+export function structureEvaluation(markdown: string): StructuredEvaluation | null {
+  const grades: GradeOverview[] = [];
+  const subjUnion = new Set<string>();
+  for (const { html, index } of topLevelTables(markdown)) {
+    if (!looksLikeEvalTable(html)) continue;
+    const { html: annotated, subjects } = annotateSubjectRows(html);
+    if (subjects.length < 5) continue; // 한 학년 전과목 종합표만 (과목별 세부표 제외)
+    const { grade, label } = gradeBefore(markdown, index);
+    if (grade == null) continue; // 학년 라벨 못 찾으면 구조화 대상 제외
+    grades.push({ grade, label, subjects, tableHtml: annotated });
+    subjects.forEach((s) => subjUnion.add(s));
+  }
+  if (!grades.length) return null;
+  grades.sort((a, b) => (a.grade ?? 99) - (b.grade ?? 99));
+  // 같은 학년이 중복 매핑되면 교과가 더 많은 표 1개만 유지
+  const byGrade = new Map<number, GradeOverview>();
+  for (const g of grades) {
+    const key = g.grade as number;
+    const prev = byGrade.get(key);
+    if (!prev || g.subjects.length > prev.subjects.length) byGrade.set(key, g);
+  }
+  const deduped = [...byGrade.values()].sort((a, b) => (a.grade ?? 99) - (b.grade ?? 99));
+  return { grades: deduped, allSubjects: [...subjUnion] };
+}
+
 function toArrayBuffer(b: Buffer): ArrayBuffer {
   return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 }

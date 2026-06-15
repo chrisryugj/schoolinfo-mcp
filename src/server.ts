@@ -7,7 +7,8 @@ import http from "http";
 import { readFileSync } from "fs";
 import { createClient, formatSchool, formatDisclosure, getParentDigest, REGIONS, searchSchoolsByName } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
-import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, MAX_ALL_DOCS } from "./evaluation.js";
+import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
+import type { School } from "./client.js";
 import { renderPage } from "./web.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
@@ -80,6 +81,33 @@ function sanitizeFilename(name: string): string {
       .trim()
       .slice(0, 200) || "download"
   );
+}
+
+/** 폴백 doc 마크다운 상한 — 구조화 실패 문서가 모바일 DOM을 폭주시키지 않게 (초과분은 원본 다운로드로 유도) */
+const DOC_MD_CAP = 100_000;
+
+/**
+ * 구조화 실패(통합형 아님/초등 등) 시 보내는 doc 마크다운.
+ * 기존엔 `### 수행평가 섹션` + `<details>전체 문서</details>`로 본문을 2번 실어 모바일이 죽었다.
+ * 여기선 중복을 없애고(섹션 있으면 섹션만), 과대 문서는 잘라 원본 다운로드로 유도한다.
+ */
+function slimDocMarkdown(school: School, results: EvaluationResult[], year?: number): string {
+  const parts: string[] = [];
+  for (const r of results) {
+    parts.push(`## 📄 ${r.filename}`);
+    if (r.evaluationSections.length) {
+      parts.push(`\n### 🎯 수행평가 관련\n`, r.evaluationSections.join("\n\n---\n\n"));
+    } else if (r.markdown.trim().length < 200) {
+      parts.push(`\n> ⚠️ 이 파일은 이미지로 된 PDF로 보여 자동 추출이 어렵습니다. 원본을 직접 확인하세요.\n`, evaluationGuide(school, year));
+    } else {
+      parts.push("\n", r.markdown);
+    }
+  }
+  let md = parts.join("\n");
+  if (md.length > DOC_MD_CAP) {
+    md = md.slice(0, DOC_MD_CAP) + `\n\n> ⚠️ 문서가 매우 커서 일부만 표시했습니다. 전체 내용은 위의 **원본 다운로드**로 확인하세요.`;
+  }
+  return md;
 }
 
 /** 확장자 → Content-Type (원본 다운로드용) */
@@ -234,8 +262,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       // 수행평가/평가계획 자동 조회
-      //  - seq 없음 + 파일 여러 개 → 과목 목록 반환 (선택용)
-      //  - seq 지정 또는 파일 1개 → 해당 파일 파싱
+      //  - seq 없음 + 파일 여러 개 → 파일(과목/학년) 목록 반환 (선택용)
+      //  - 단일 문서 → 학년별 종합표로 구조화(structured) 시도 → 실패 시 슬림 doc
+      //  - all → 여러 문서를 슬림 doc 으로 (중복/과대 본문 방지)
       if (url.pathname === "/api/evaluation") {
         const school = await resolve();
         if (!school) return json(res, 404, { error: "학교를 찾을 수 없습니다." });
@@ -244,7 +273,7 @@ const server = http.createServer(async (req, res) => {
         try {
           const { docs, downloadParams, year: docYear } = await listEvaluationDocs(school, year);
           if (!seq && !all && docs.length > 1) {
-            // 과목별로 쪼개진 학교 → 목록 반환
+            // 과목/학년별로 쪼개진 학교 → 목록 반환
             return json(res, 200, {
               school: school.name,
               mode: "list",
@@ -263,29 +292,47 @@ const server = http.createServer(async (req, res) => {
           } else {
             targets = [docs[0]];
           }
-          const sections: string[] = [];
-          for (const t of targets) {
+
+          // 단일 문서: 학년별 종합표 구조화 시도 (통합형이면 학년/과목 칩으로 가볍게 전달)
+          if (targets.length === 1) {
+            const t = targets[0];
             const r = await fetchEvaluationBySeq(downloadParams, t);
-            const parts = [`## 📄 ${r.filename}`];
-            if (r.evaluationSections.length) {
-              parts.push(`\n### 🎯 수행평가 관련\n`, r.evaluationSections.join("\n\n---\n\n"));
-            } else if (r.markdown.trim().length < 200) {
-              // 이미지 PDF 등 본문 추출 실패 → 수동 확인 안내
-              parts.push(`\n> ⚠️ 이 파일은 이미지로 된 PDF로 보여 자동 추출이 어렵습니다. 원본을 직접 확인하세요.\n`, evaluationGuide(school, year));
+            const downloads = [{ seq: t.seq, filename: t.filename, sizeKB: t.sizeKB }];
+            const structured = structureEvaluation(r.markdown);
+            if (structured) {
+              return json(res, 200, {
+                school: school.name,
+                mode: "structured",
+                year: docYear,
+                filename: r.filename,
+                grades: structured.grades,
+                allSubjects: structured.allSubjects,
+                downloads,
+              });
             }
-            parts.push(`\n<details><summary>전체 문서 보기</summary>\n\n${r.markdown}\n</details>`);
-            sections.push(parts.join("\n"));
+            // 구조화 실패 → 슬림 doc (클라가 점진 렌더)
+            return json(res, 200, {
+              school: school.name,
+              mode: "doc",
+              year: docYear,
+              downloads,
+              markdown: slimDocMarkdown(school, [r], docYear),
+            });
           }
+
+          // 다중(all): 슬림 doc
+          const results: EvaluationResult[] = [];
+          for (const t of targets) results.push(await fetchEvaluationBySeq(downloadParams, t));
+          let markdown = slimDocMarkdown(school, results, docYear);
           if (all && docs.length > MAX_ALL_DOCS) {
-            sections.push(`> 평가계획 파일이 ${docs.length}개로 많아 앞쪽 ${MAX_ALL_DOCS}개만 표시했습니다. 특정 과목을 선택해 조회하세요.`);
+            markdown += `\n\n> 평가계획 파일이 ${docs.length}개로 많아 앞쪽 ${MAX_ALL_DOCS}개만 표시했습니다. 특정 과목/학년을 선택해 조회하세요.`;
           }
           return json(res, 200, {
             school: school.name,
             mode: "doc",
             year: docYear,
-            // 화면에 표시한 문서들의 원본 다운로드 메타 (변환 실패해도 원본은 받을 수 있게)
             downloads: targets.map((t) => ({ seq: t.seq, filename: t.filename, sizeKB: t.sizeKB })),
-            markdown: sections.join("\n\n"),
+            markdown,
           });
         } catch (e: any) {
           return json(res, 200, {

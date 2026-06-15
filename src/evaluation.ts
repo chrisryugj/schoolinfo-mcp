@@ -404,6 +404,91 @@ function topLevelTables(md: string): { html: string; index: number }[] {
   return out;
 }
 
+/**
+ * 표의 데이터 행 rowspan을 펼쳐(셀 복제) 각 행을 독립적으로 만든다.
+ * 통합형 종합표는 "학기" 등 공통 셀을 rowspan으로 한 행에만 두는데, 과목 칩 필터가
+ * 그 행을 display:none 하면 나머지 행의 컬럼이 한 칸씩 밀려 헤더와 어긋난다.
+ * rowspan을 펼치면 어느 행을 숨겨도 정렬이 유지된다. (헤더 th 행은 원본 유지)
+ */
+function expandRowspanCells(tableHtml: string): string {
+  interface Cell {
+    tag: string;
+    attrs: string;
+    html: string;
+    colspan: number;
+    rowspan: number;
+  }
+  const trRe = /<tr(\s[^>]*)?>([\s\S]*?)<\/tr>/gi;
+  const cellRe = /<(t[dh])([^>]*)>([\s\S]*?)<\/t[dh]>/gi;
+  const numAttr = (s: string, name: string): number => {
+    const m = new RegExp(name + '=["\']?(\\d+)', "i").exec(s);
+    return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+  };
+  const rows = [...tableHtml.matchAll(trRe)];
+  if (!rows.length) return tableHtml;
+
+  // pending[col] = 위 행에서 내려오는 rowspan 셀 (시작 컬럼에만 보관)
+  const pending: ({ cell: Cell; left: number } | null)[] = [];
+  const stripRs = (a: string) => a.replace(/\s*rowspan=["']?\d+["']?/i, "");
+  const outTrs: string[] = [];
+
+  for (const r of rows) {
+    const attr = r[1] || "";
+    const inner = r[2];
+    const cells: Cell[] = [...inner.matchAll(cellRe)].map((c) => ({
+      tag: c[1],
+      attrs: c[2] || "",
+      html: c[3],
+      colspan: numAttr(c[2] || "", "colspan"),
+      rowspan: numAttr(c[2] || "", "rowspan"),
+    }));
+    // 헤더(th만) 행은 항상 표시되므로 정렬 영향 없음 → 원본 유지
+    const isHeader = cells.length > 0 && cells.every((c) => c.tag.toLowerCase() === "th");
+    if (isHeader) {
+      outTrs.push(`<tr${attr}>${inner}</tr>`);
+      continue;
+    }
+    const out: string[] = [];
+    const emit = (c: Cell) => out.push(`<${c.tag}${stripRs(c.attrs)}>${c.html}</${c.tag}>`);
+    let col = 0;
+    let ci = 0;
+    let guard = 0;
+    while (guard++ < 2000) {
+      const p = pending[col];
+      if (p && p.left > 0) {
+        emit(p.cell); // 위에서 내려온 rowspan 셀을 이 행에 복제
+        p.left--;
+        col += p.cell.colspan;
+        continue;
+      }
+      if (ci < cells.length) {
+        const c = cells[ci++];
+        emit(c);
+        pending[col] = c.rowspan > 1 ? { cell: c, left: c.rowspan - 1 } : null;
+        col += c.colspan;
+        continue;
+      }
+      // 원본 셀 소진 — 뒤쪽 컬럼에 활성 rowspan이 남았으면 그 컬럼으로 점프
+      let next = -1;
+      for (let cc = col; cc < pending.length; cc++) {
+        const pc = pending[cc];
+        if (pc && pc.left > 0) {
+          next = cc;
+          break;
+        }
+      }
+      if (next < 0) break;
+      col = next;
+    }
+    outTrs.push(`<tr${attr}>${out.join("")}</tr>`);
+  }
+
+  const first = tableHtml.search(/<tr[\s>]/i);
+  const last = tableHtml.toLowerCase().lastIndexOf("</tr>");
+  if (first < 0 || last < 0) return tableHtml;
+  return tableHtml.slice(0, first) + outTrs.join("") + tableHtml.slice(last + 5);
+}
+
 /** 종합표의 각 교과 행에 data-subject 속성을 주입하고 교과 순서를 수집 */
 function annotateSubjectRows(tableHtml: string): { html: string; subjects: string[] } {
   const subjects: string[] = [];
@@ -452,7 +537,9 @@ export function structureEvaluation(markdown: string): StructuredEvaluation | nu
   const subjUnion = new Set<string>();
   for (const { html, index } of topLevelTables(markdown)) {
     if (!looksLikeEvalTable(html)) continue;
-    const { html: annotated, subjects } = annotateSubjectRows(html);
+    // rowspan(학기 등 공통 셀)을 먼저 펼쳐야 과목 필터로 행을 숨겨도 컬럼이 안 밀린다
+    const expanded = expandRowspanCells(html);
+    const { html: annotated, subjects } = annotateSubjectRows(expanded);
     if (subjects.length < 5) continue; // 한 학년 전과목 종합표만 (과목별 세부표 제외)
     const { grade, label } = gradeBefore(markdown, index);
     if (grade == null) continue; // 학년 라벨 못 찾으면 구조화 대상 제외

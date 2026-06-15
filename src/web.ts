@@ -198,6 +198,8 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .result-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
   .result-head h2{margin:0; font-size:21px; font-weight:700; letter-spacing:-0.02em;}
   .dls{display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 4px;}
+  /* 다운로드 버튼: 파일명이 길어도 카드 밖으로 넘치지 않게 줄바꿈 허용 + 폭 제한 */
+  .dls .btn{max-width:100%; min-width:0; white-space:normal; word-break:break-word; text-align:left; justify-content:flex-start; line-height:1.35;}
   .out{margin-top:10px; font-size:15px; color:var(--ink-dim);}
   .out :first-child{margin-top:0;}
   .out h2{font-size:19px; color:#fff; margin:24px 0 8px; letter-spacing:-0.02em;}

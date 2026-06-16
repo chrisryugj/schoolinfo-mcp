@@ -14,3 +14,6 @@ si_dl/
 reg*.mjs
 dbg*.mjs
 .claude/
+__pycache__/
+*.py[cod]
+shots/

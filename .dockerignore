@@ -7,3 +7,7 @@ dist
 downloads
 test_eval.mjs
 smoke.mjs
+shots
+make_icon.py
+make_og.py
+icon.png

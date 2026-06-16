@@ -608,6 +608,48 @@ function looksLikeEvalTable(tableHtml: string): boolean {
 }
 
 /**
+ * GFM 파이프표(| a | b |)를 HTML <table>로 변환한다 (PDF 마크다운 정규화용).
+ * 표 외 텍스트(학년 캡션 등)는 그대로 둬 gradeBefore의 위치 추론이 유지된다.
+ * GFM 표엔 rowspan/colspan이 없어 expandRowspanCells는 자연히 no-op이 된다.
+ */
+function gfmTablesToHtml(md: string): string {
+  const lines = md.split("\n");
+  const isRow = (s: string) => s.trim().startsWith("|") && s.includes("|", 1);
+  // 구분선 행: | --- | :--: | … (대시 필수, 정렬 콜론 허용)
+  const isSep = (s: string) => /-/.test(s) && /^\s*\|?(\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/.test(s);
+  const splitCells = (s: string) => {
+    let t = s.trim();
+    if (t.startsWith("|")) t = t.slice(1);
+    if (t.endsWith("|")) t = t.slice(0, -1);
+    return t.split("|").map((c) => c.trim());
+  };
+  // 셀 텍스트 이스케이프 — XSS 방어(클라 DOMPurify가 최종 게이트지만 서버단도 정제).
+  // 단 줄바꿈 토큰 <br>은 hwpx 표와 동일하게 살린다 (평가요소 다중 항목 가독성).
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (i + 1 < lines.length && isRow(lines[i]) && isSep(lines[i + 1])) {
+      const header = splitCells(lines[i]);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && isRow(lines[i]) && !isSep(lines[i])) {
+        rows.push(splitCells(lines[i]));
+        i++;
+      }
+      const th = `<tr>${header.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`;
+      const trs = rows.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("");
+      out.push(`<table>${th}${trs}</table>`);
+      continue;
+    }
+    out.push(lines[i]);
+    i++;
+  }
+  return out.join("\n");
+}
+
+/**
  * 통합형 평가계획 마크다운을 학년별 종합표로 구조화한다.
  * 학년이 매핑된 종합표가 1개 이상일 때만 결과를 반환(아니면 null → 호출부가 폴백 렌더).
  */
@@ -615,6 +657,11 @@ export function structureEvaluation(markdown: string): StructuredEvaluation | nu
   // 과대 문서(이상치)는 동기 정규식 스캔이 이벤트 루프를 길게 점유(CPU DoS)하므로 구조화하지 않고
   // 폴백(slim doc/원본 다운로드)으로 보낸다. 정상 통합문서는 수백KB라 2MB 여유 충분.
   if (markdown.length > 2_000_000) return null;
+  // PDF는 표가 GFM 파이프표(| … |)로 나와 이 파이프라인(topLevelTables 등 <table> 전용)이 못 본다.
+  // <table>가 없고 GFM 표만 있는 문서(=PDF)면 HTML <table>로 정규화해 hwpx와 동일 경로를 태운다.
+  if (!/<table/i.test(markdown) && /^\s*\|.*\|\s*$/m.test(markdown)) {
+    markdown = gfmTablesToHtml(markdown);
+  }
   const grades: GradeOverview[] = [];
   const subjUnion = new Set<string>();
   for (const { html, index } of topLevelTables(markdown)) {

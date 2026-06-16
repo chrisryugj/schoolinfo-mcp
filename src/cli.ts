@@ -13,12 +13,13 @@ import { homedir } from "os";
 import { execFile } from "child_process";
 import { SchoolInfoClient, School } from "./client.js";
 import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES, resolveSido } from "./codes.js";
-import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
+import { formatSchool, formatDisclosure, getParentDigest, getAreaReport, formatAreaReport } from "./index.js";
 import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation, listEvaluationDocs } from "./evaluation.js";
 import {
   findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule,
   fetchMeal, formatMeal, parseAvoid, todayKstYmd,
   fetchTimetable, weekRange, formatWeek, upcomingHighlights,
+  fetchAreaExams, formatExamCalendar,
 } from "./neis.js";
 
 const KINDS = Object.keys(SCHOOL_KIND);
@@ -219,6 +220,44 @@ async function main() {
       console.log(formatWeek(ns.name, range, { meals, weekEvents, upcoming, todayTimetable, today }));
       break;
     }
+    case "exams": {
+      // 지역 시험 캘린더 (NEIS). exams <시도> <시군구> <학교급> [학교명…|연도]
+      // 학교명을 주면 그 학교들만, 없으면 시군구+학교급 전체(최대 20개).
+      const [sido, sgg, kind, ...rest] = args;
+      requireKind(kind);
+      if (!hasNeisKey()) {
+        console.error("❌ 시험 캘린더는 환경변수 NEIS_API_KEY가 필요합니다. (https://open.neis.go.kr 무료)");
+        process.exit(1);
+      }
+      const sidoName = resolveSido(sido)?.name ?? sido;
+      const yearArg = rest.find((a) => /^\d{4}$/.test(a));
+      const year = yearArg ? Number(yearArg) : currentAcademicYear();
+      const names = rest.filter((a) => !/^\d{4}$/.test(a));
+      let schoolNames: string[];
+      if (names.length) {
+        schoolNames = names.slice(0, 20);
+      } else {
+        const list = await client().searchSchools({ sido, sgg, kind: kind as SchoolKindName });
+        if (!list.length) { console.log("검색 결과 없음"); break; }
+        schoolNames = list.map((s) => s.name).slice(0, 20);
+      }
+      const neis = (await Promise.all(schoolNames.map((n) => findNeisSchool(n, sidoName, sgg).catch(() => null))))
+        .filter((s): s is NonNullable<typeof s> => !!s);
+      if (!neis.length) { console.error("❌ NEIS에서 학교를 찾지 못했습니다."); process.exit(1); }
+      const results = await fetchAreaExams(neis, year);
+      console.log(formatExamCalendar(`${sidoName} ${sgg}`.trim(), results));
+      break;
+    }
+    case "report": {
+      // 학교 비교 리포트. report <시도> <시군구> <학교급> [학교명…|연도]
+      const [sido, sgg, kind, ...rest] = args;
+      requireKind(kind);
+      const yearArg = rest.find((a) => /^\d{4}$/.test(a));
+      const names = rest.filter((a) => !/^\d{4}$/.test(a));
+      const rep = await getAreaReport(client(), sido, sgg, kind as SchoolKindName, yearArg ? Number(yearArg) : undefined);
+      console.log(formatAreaReport(rep, names.length ? names : undefined));
+      break;
+    }
     default:
       printHelp();
   }
@@ -283,6 +322,8 @@ function printHelp() {
   schoolinfo schedule <시도> <시군구> <학교급> <학교명> [연도]   학사일정(시험·방학 등, NEIS)
   schoolinfo meal     <시도> <시군구> <학교급> <학교명> [회피알레르기…]   오늘 급식(알레르기 표시, NEIS)
   schoolinfo week     <시도> <시군구> <학교급> <학교명> [학년] [반]   이번주 브리핑(급식·일정·D-day, NEIS)
+  schoolinfo exams    <시도> <시군구> <학교급> [학교명…]   지역 시험 캘린더(여러 학교 중간·기말, NEIS)
+  schoolinfo report   <시도> <시군구> <학교급> [학교명…]   학교 비교 리포트(학급당·급식·교원·동아리·장서)
 
 학교급: ${KINDS.join(", ")}
 

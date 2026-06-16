@@ -374,7 +374,7 @@ function ddayBetween(base: string, target: string): number {
   return Math.round((t - b) / 86400000);
 }
 
-const EXAM_RE = /고사|지필/; // 중간/기말고사, 1·2차 지필평가 등 ("평가"만은 수행평가 노이즈라 제외)
+export const EXAM_RE = /고사|지필/; // 중간/기말고사, 1·2차 지필평가 등 ("평가"만은 수행평가 노이즈라 제외)
 const VACATION_RE = /방학/;
 
 /** 오늘(KST) 이후 가장 가까운 시험/방학 항목 (D-day 포함) */
@@ -473,6 +473,121 @@ export interface WeekData {
   upcoming: { exam?: UpcomingEvent; vacation?: UpcomingEvent };
   todayTimetable?: TimetableItem[];
   today: string;
+}
+
+// ─── 지역 시험 캘린더 (다학교 시험기간 집계) ─────────────────────
+// 학원 핵심 워크플로우: "우리 학원 다니는 학교들 시험이 언제 몰리나"를 한 타임라인으로.
+// 단일 학교 학사일정(fetchSchedule)을 여러 학교에 돌려 EXAM_RE로 시험만 추려, 연속일을
+// 하나의 '시험기간'으로 묶는다. NEIS 학사일정에 시험을 안 넣는 학교는 periods:[]로 빠진다(미기재).
+
+/** 시험명에서 회차 라벨 추출 ("2025학년도 1학기 중간고사" → "1학기 중간고사", 못 찾으면 원본 정리) */
+function examLabel(name: string): string {
+  const sem = /([12])\s*학기/.exec(name)?.[0]?.replace(/\s/g, "") ?? "";
+  const kind =
+    /기말/.test(name) ? "기말고사" :
+    /중간/.test(name) ? "중간고사" :
+    /(\d)\s*차\s*지필/.exec(name)?.[0]?.replace(/\s/g, "") ??
+    (/지필/.test(name) ? "지필평가" : "고사");
+  const label = `${sem ? sem + " " : ""}${kind}`.trim();
+  return label || name.trim();
+}
+
+export interface ExamPeriod {
+  label: string;
+  from: string; // YYYYMMDD
+  to: string;   // YYYYMMDD
+  days: number; // 시험일수
+}
+
+/** 한 학교 학사일정에서 시험 항목만 추려 연속(간격 ≤ gap일)이면 한 기간으로 병합 */
+export function groupExamPeriods(items: ScheduleItem[], gap = 4): ExamPeriod[] {
+  const exams = items
+    .filter((it) => EXAM_RE.test(it.name))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const periods: ExamPeriod[] = [];
+  const seenDay = new Set<string>();
+  for (const e of exams) {
+    if (seenDay.has(e.date)) continue; // 같은 날 복수 시험행은 1일로
+    seenDay.add(e.date);
+    const last = periods[periods.length - 1];
+    if (last && ddayBetween(last.to, e.date) <= gap) {
+      last.to = e.date;
+      last.days++;
+    } else {
+      periods.push({ label: examLabel(e.name), from: e.date, to: e.date, days: 1 });
+    }
+  }
+  return periods;
+}
+
+export interface SchoolExams {
+  school: string;
+  periods: ExamPeriod[];
+}
+
+/** 여러 학교의 시험기간을 한 번에 집계 (각 학교 학사일정 병렬 조회) */
+export async function fetchAreaExams(
+  schools: { name: string; atptCode: string; schoolCode: string }[],
+  year: number
+): Promise<SchoolExams[]> {
+  const lastFeb = new Date(year + 1, 2, 0).getDate();
+  const from = `${year}0301`;
+  const to = `${year + 1}02${lastFeb}`;
+  const results = await Promise.all(
+    schools.map(async (s): Promise<SchoolExams> => {
+      try {
+        const items = await fetchSchedule(s.atptCode, s.schoolCode, from, to);
+        return { school: s.name, periods: groupExamPeriods(items) };
+      } catch {
+        return { school: s.name, periods: [] }; // 조회 실패 학교는 미기재로
+      }
+    })
+  );
+  return results;
+}
+
+/** "6/24~6/26" 또는 단일일 "6/24" */
+function periodRange(p: ExamPeriod): string {
+  const md = (y: string) => `${+y.slice(4, 6)}/${+y.slice(6, 8)}`;
+  return p.from === p.to ? md(p.from) : `${md(p.from)}~${md(p.to)}`;
+}
+
+/** 지역 시험 캘린더 마크다운 (MCP/CLI 공용). 다가오는 시험은 상단 타임라인 + 학교별 표. */
+export function formatExamCalendar(
+  title: string,
+  results: SchoolExams[],
+  opts: { today?: string } = {}
+): string {
+  const today = opts.today ?? todayKstYmd();
+  const parts = [`# 📝 ${title} 시험 캘린더`, ""];
+
+  // 다가오는 시험만 모아 날짜순 타임라인 (오늘 이후, 종료일 기준)
+  const upcoming: { school: string; p: ExamPeriod }[] = [];
+  for (const r of results) for (const p of r.periods) if (p.to >= today) upcoming.push({ school: r.school, p });
+  upcoming.sort((a, b) => a.p.from.localeCompare(b.p.from));
+
+  if (upcoming.length) {
+    parts.push(`## 🔜 다가오는 시험`, "");
+    for (const { school, p } of upcoming.slice(0, 30)) {
+      const dday = ddayBetween(today, p.from);
+      const tag = dday <= 0 && ddayBetween(today, p.to) >= 0 ? "진행중" : dday === 0 ? "D-DAY" : dday > 0 ? `D-${dday}` : "종료";
+      parts.push(`- **${periodRange(p)}** ${school} ${p.label} · ${tag}`);
+    }
+    parts.push("");
+  }
+
+  // 학교별 전체 시험기간
+  parts.push(`## 🏫 학교별`, "");
+  for (const r of results) {
+    if (!r.periods.length) {
+      parts.push(`- ${r.school}: _학사일정에 시험 미기재_`);
+      continue;
+    }
+    const ps = r.periods.map((p) => `${p.label}(${periodRange(p)})`).join(", ");
+    parts.push(`- **${r.school}**: ${ps}`);
+  }
+  parts.push("", `> 시험일은 각 학교가 NEIS 학사일정에 등록한 것만 집계됩니다. 미기재 학교는 학교에 확인하세요.`);
+  return parts.join("\n");
 }
 
 /** 주간 브리핑 마크다운 (MCP/CLI/web 공용). 급식·일정 없는 날은 생략하되 오늘은 항상 표시. */

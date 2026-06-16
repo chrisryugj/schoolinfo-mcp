@@ -5,11 +5,11 @@
 
 import http from "http";
 import { readFileSync } from "fs";
-import { createClient, formatSchool, formatDisclosure, getParentDigest, getAreaStudents, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
+import { createClient, formatSchool, formatDisclosure, getParentDigest, getAreaStudents, getAreaReport, formatAreaReport, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
 import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEvaluationFile, structureEvaluation, MAX_ALL_DOCS, type EvaluationResult } from "./evaluation.js";
 import type { School } from "./client.js";
-import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, fetchMeal, todayKstYmd, addDaysYmd, weekRange, formatWeek, upcomingHighlights } from "./neis.js";
+import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, fetchMeal, todayKstYmd, addDaysYmd, weekRange, formatWeek, upcomingHighlights, fetchAreaExams, formatExamCalendar } from "./neis.js";
 import { renderPage } from "./web.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
@@ -374,6 +374,44 @@ const server = http.createServer(async (req, res) => {
         } catch (e: any) {
           console.error("[compare]", e?.message ?? e);
           return json(res, 200, { sido, sgg, kind, schools: [], note: "주변 학교 학생수를 가져오지 못했습니다." });
+        }
+      }
+
+      // 학교 비교 리포트 — 시군구 학교들을 핵심 지표로 한 표에 (09/34/35/22/56/58 조인)
+      if (url.pathname === "/api/report") {
+        try {
+          const rep = await getAreaReport(client, sido, sgg, kind, year);
+          return json(res, 200, { ...rep, markdown: formatAreaReport(rep) });
+        } catch (e: any) {
+          console.error("[report]", e?.message ?? e);
+          return json(res, 200, { sido, sgg, kind, schools: [], note: "비교 리포트를 가져오지 못했습니다." });
+        }
+      }
+
+      // 지역 시험 캘린더 — 여러 학교 시험기간 집계 (NEIS). names(콤마구분) 있으면 그 학교만.
+      if (url.pathname === "/api/exams") {
+        if (!hasNeisKey()) {
+          return json(res, 200, { results: [], note: "시험 캘린더는 NEIS API 키 설정 후 제공됩니다." });
+        }
+        try {
+          const sidoName = resolveSido(sido)?.name ?? sido;
+          const namesParam = q.get("names");
+          let schoolNames: string[];
+          if (namesParam) {
+            schoolNames = namesParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20);
+          } else {
+            const list = await client.searchSchools({ sido, sgg, kind });
+            schoolNames = list.map((s) => s.name).slice(0, 20);
+          }
+          const neis = (await Promise.all(schoolNames.map((n) => findNeisSchool(n, sidoName, sgg).catch(() => null))))
+            .filter((s): s is NonNullable<typeof s> => !!s);
+          const y = year ?? currentAcademicYear();
+          const results = await fetchAreaExams(neis, y);
+          const markdown = formatExamCalendar(`${sidoName} ${sgg ?? ""}`.trim(), results);
+          return json(res, 200, { sido: sidoName, sgg, year: y, results, markdown });
+        } catch (e: any) {
+          console.error("[exams]", e?.message ?? e);
+          return json(res, 200, { results: [], note: "시험 캘린더를 일시적으로 가져오지 못했습니다." });
         }
       }
 

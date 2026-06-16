@@ -2,7 +2,7 @@
 
 **내 아이 학교, 검색하지 말고 물어보세요.**
 
-[![license](https://img.shields.io/npm/l/schoolinfo-mcp.svg)](./LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 
 > *학교알리미는 정보가 다 있는데, 막상 찾으려면 어디 있는지 모릅니다.*
@@ -160,7 +160,7 @@
 > Claude가 알아서 학교를 찾고, hwp를 내려받아 변환하고, 표로 정리해줍니다.
 > 학교코드·연도·파일 위치 같은 건 **하나도 몰라도 됩니다.**
 
-### 제공 도구 (로컬 10종 · 원격 9종)
+### 제공 도구 (로컬 12종 · 원격 11종)
 
 | 도구 | 하는 일 |
 |------|---------|
@@ -172,6 +172,8 @@
 | `get_school_schedule` | **학사일정 조회** (시험·방학·체험학습 + 다가오는 **시험/방학 D-day**, NEIS — `NEIS_API_KEY` 필요) |
 | `get_school_meal` | **급식 식단 + 알레르기 회피 필터** (날짜별 요리·알레르기 18종·칼로리·영양, NEIS) |
 | `get_school_week` | **이번주 브리핑** (급식·학사일정·D-day; 학년·반 주면 오늘 시간표까지, NEIS) |
+| `get_exam_calendar` | **지역 시험 캘린더** — 여러 학교 중간·기말고사 일정을 한 타임라인으로 (학원·학부모, NEIS) |
+| `get_school_report` | **학교 비교 리포트** — 같은 시군구 학교들을 학급당 인원·급식 운영방식·교원 기간제 비율·동아리 수로 한 표에 (전학·입학) |
 | `get_evaluation_plan` | **수행평가 계획 자동 조회** (hwp 다운로드 → 파싱 → 표 추출) |
 | `parse_evaluation_file` | 직접 받은 평가계획 파일(hwp/pdf/docx) 변환 |
 
@@ -330,6 +332,10 @@ $ schoolinfo eval 서울 강남구 고등학교 ○○고등학교
 
 ```bash
 schoolinfo digest 서울 강남구 중학교 개포중학교       # 핵심 공시 모아보기
+schoolinfo report 서울 강남구 중학교                   # 학교 비교 리포트 (학급당·급식·교원기간제·동아리)
+schoolinfo report 서울 강남구 중학교 개포중 대청중     # 특정 학교들만 비교
+schoolinfo exams  서울 강남구 중학교                   # 지역 시험 캘린더 (인근 학교 전체, NEIS)
+schoolinfo exams  서울 강남구 중학교 개포중 대청중     # 특정 학교들 시험만
 schoolinfo schedule 서울 강남구 중학교 개포중학교      # 학사일정 (시험·방학 등, NEIS_API_KEY 필요)
 schoolinfo parse "C:\Downloads\2026_평가계획.hwp"     # 받은 hwp → 마크다운 + 수행평가 추출
 schoolinfo check 서울 강남구 중학교 개포중학교         # 변경 감지 + 알림 (스케줄러용)

@@ -508,6 +508,8 @@ function schoolCard(ctx, opts){
       + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
       + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
       + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
+      + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>'
       + hpBtn + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
@@ -571,6 +573,8 @@ document.addEventListener('click', (e) => {
   else if (act === 'meal'){ rememberFrom(b); loadMeal(ctxOf(b)); }
   else if (act === 'week'){ rememberFrom(b); loadWeek(ctxOf(b)); }
   else if (act === 'compare'){ rememberFrom(b); loadCompare(ctxOf(b)); }
+  else if (act === 'report'){ rememberFrom(b); loadReport(ctxOf(b)); }
+  else if (act === 'exams'){ rememberFrom(b); loadExams(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
   else if (act === 'home'){ openHomepage(ctxOf(b), b); }
@@ -888,6 +892,26 @@ function renderCompare(ctx, d){
     + '<div class="out"><div class="tablewrap">'+table+'</div><div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div></div>';
   $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
+}
+/* ── 학교 비교표 (같은 시군구·학교급 핵심 지표) — 서버가 markdown으로 내려줌 ── */
+async function loadReport(ctx){
+  $('output').innerHTML = spinner('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학교를 비교하는 중…');
+  try{
+    const r = await fetch('/api/report?'+qp(ctx));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    render('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 비교', d.markdown || (d.note||'표시할 학교가 없습니다.'), '');
+  }catch(e){ $('output').innerHTML = info('비교 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+}
+/* ── 지역 시험 캘린더 (인근 학교 중간·기말 집계, NEIS) ── */
+async function loadExams(ctx){
+  $('output').innerHTML = spinner('📝 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 시험 일정을 모으는 중… (여러 학교라 조금 걸려요)');
+  try{
+    const r = await fetch('/api/exams?'+qp(ctx));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    render('📝 '+h(ctx.sgg||'')+' 시험 캘린더', d.markdown || (d.note||'표시할 시험 일정이 없습니다.'), '');
+  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
 }
 /* ── 핵심 공시 ── */
 async function loadDigest(ctx){

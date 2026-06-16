@@ -15,11 +15,12 @@ import { readFileSync, statSync, realpathSync } from "fs";
 import { resolve, extname } from "path";
 import { SchoolInfoClient, School, searchSchoolsByName } from "./client.js";
 import { API_TYPES, SCHOOL_KIND, SchoolKindName, findApiType, resolveSido } from "./codes.js";
-import { formatSchool, formatDisclosure, getParentDigest } from "./index.js";
+import { formatSchool, formatDisclosure, getParentDigest, getAreaReport, formatAreaReport } from "./index.js";
 import {
   findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule,
   fetchMeal, formatMeal, parseAvoid, todayKstYmd, addDaysYmd,
   fetchTimetable, weekRange, formatWeek, upcomingHighlights,
+  fetchAreaExams, formatExamCalendar,
 } from "./neis.js";
 import {
   evaluationGuide,
@@ -31,6 +32,8 @@ import {
 const KINDS = Object.keys(SCHOOL_KIND) as [SchoolKindName, ...SchoolKindName[]];
 const ALLOWED_EXT = new Set([".hwp", ".hwpx", ".hwpml", ".pdf", ".xlsx", ".xls", ".docx"]);
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
+/** 시험 캘린더 다학교 NEIS 조회 상한 — 응답 지연·rate 방어 */
+const MAX_EXAM_SCHOOLS = 20;
 
 function getClient(): SchoolInfoClient {
   const key = process.env.SCHOOLINFO_API_KEY;
@@ -69,7 +72,7 @@ function err(text: string) {
  */
 export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
   const localFiles = opts.localFiles !== false;
-  const server = new McpServer({ name: "schoolinfo-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "schoolinfo-mcp", version: "0.2.0" });
 
   // ─── 0. 학교명 전국 검색 (지역/학교급 몰라도 됨) ────────
   server.tool(
@@ -289,6 +292,68 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
           } catch { /* 시간표 미등록/오류는 무시(브리핑 본체는 유지) */ }
         }
         return ok(formatWeek(ns.name, range, { meals, weekEvents, upcoming, todayTimetable, today }));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.8 지역 시험 캘린더 (다학교 시험기간 집계, NEIS) ──
+  // 학원/학부모: 여러 학교의 중간·기말고사 일정을 한 타임라인으로. names를 주면 그 학교만,
+  // 없으면 sgg+kind 지역 전체(상한). NEIS 학사일정에 시험을 등록한 학교만 집계된다.
+  server.tool(
+    "get_exam_calendar",
+    "여러 학교의 시험(중간·기말고사) 일정을 한 캘린더로 모아 보여줍니다. 학원이 '우리 학원 학생들 학교 시험이 언제 몰리나'를 보거나, 학부모가 인근 학교 시험기간을 비교할 때 씁니다. names에 학교명 배열을 주면 그 학교들만, 생략하면 sgg+kind 지역 전체(최대 20개)를 집계합니다. NEIS 학사일정 기반(NEIS_API_KEY 필요).",
+    {
+      sido: z.string().describe("시도명 (예: 서울특별시 — 약칭 '서울'도 가능)"),
+      names: z.array(z.string()).optional().describe("학교명 배열 (예: ['개포중학교','대청중학교']). 생략 시 지역 전체."),
+      sgg: z.string().optional().describe("시군구명 (지역 전체 모드에 필수, 동명이교 구분용)"),
+      kind: z.enum(KINDS).optional().describe("학교급 (지역 전체 모드에 필수)"),
+      year: z.number().optional().describe("학년도 (기본: 현재 학년도)"),
+    },
+    async ({ sido, names, sgg, kind, year }) => {
+      try {
+        if (!hasNeisKey())
+          return err("시험 캘린더는 NEIS API 키(NEIS_API_KEY)가 필요합니다. https://open.neis.go.kr 에서 무료 발급 후 설정하세요.");
+        const sidoName = resolveSido(sido)?.name ?? sido;
+        let schoolNames: string[];
+        if (names && names.length) {
+          schoolNames = names.slice(0, MAX_EXAM_SCHOOLS);
+        } else {
+          if (!kind || !sgg)
+            return err("지역 전체 조회에는 sgg(시군구)와 kind(학교급)가 필요합니다. 또는 names에 학교명 배열을 주세요.");
+          const list = await getClient().searchSchools({ sido, sgg, kind });
+          if (!list.length) return ok(`${sidoName} ${sgg} ${kind} 학교를 찾지 못했습니다.`);
+          schoolNames = list.map((s) => s.name).slice(0, MAX_EXAM_SCHOOLS);
+        }
+        const neisSchools = (
+          await Promise.all(schoolNames.map((n) => findNeisSchool(n, sidoName, sgg).catch(() => null)))
+        ).filter((s): s is NonNullable<typeof s> => !!s);
+        if (!neisSchools.length) return ok("NEIS에서 해당 학교들을 찾지 못했습니다.");
+        const y = year ?? currentAcademicYear();
+        const results = await fetchAreaExams(neisSchools, y);
+        return ok(formatExamCalendar(`${sidoName} ${sgg ?? ""}`.trim(), results));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.9 학교 비교 리포트 (전학·입학 결정) ──────────────
+  server.tool(
+    "get_school_report",
+    "같은 시군구·학교급 학교들을 핵심 지표(학급당 인원·급식 운영방식/1식 식품비·교원 기간제 비율·동아리 수·1인당 장서)로 한 표에 비교합니다. 전학·입학 학교를 고를 때 씁니다. names에 학교명 배열을 주면 그 학교들만 추려 비교합니다.",
+    {
+      sido: z.string().describe("시도명 (예: 서울특별시)"),
+      sgg: z.string().describe("시군구명 (예: 강남구)"),
+      kind: z.enum(KINDS).describe("학교급"),
+      names: z.array(z.string()).optional().describe("비교할 학교명 배열 (생략 시 시군구 전체)"),
+      year: z.number().optional().describe("공시연도 (기본: 올해)"),
+    },
+    async ({ sido, sgg, kind, names, year }) => {
+      try {
+        const rep = await getAreaReport(getClient(), sido, sgg, kind, year);
+        return ok(formatAreaReport(rep, names));
       } catch (e: any) {
         return err(`오류: ${e.message}`);
       }

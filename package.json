@@ -1,11 +1,11 @@
 {
   "name": "schoolinfo-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "학교알리미(schoolinfo.go.kr) 공시정보 MCP 서버 + CLI — 학부모가 내 아이 학교의 평가계획·수행평가·공시정보를 쉽게 확인",
   "type": "module",
   "bin": {
-    "schoolinfo": "./dist/cli.js",
-    "schoolinfo-mcp": "./dist/mcp.js"
+    "schoolinfo": "dist/cli.js",
+    "schoolinfo-mcp": "dist/mcp.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

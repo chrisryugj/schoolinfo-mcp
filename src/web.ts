@@ -658,7 +658,41 @@ let myKeys = new Set(myList.map(normSubj));
 let admSubjects = [];   // 서버가 준 인기 과목 팔레트
 let lastAdm = null;     // 마지막 결과 — 내 과목이 바뀌면 다시 그린다
 function saveMy(){ try{ localStorage.setItem(MY_KEY, JSON.stringify(myList.slice(0,80))); }catch{} myKeys = new Set(myList.map(normSubj)); }
-function hasMy(name){ return myKeys.has(normSubj(name)); }
+// 2015개정 표기 → 2022개정 과목 별칭. 대학 문서가 옛 표기로 적었어도 학생의 현행 과목과 매칭되게 한다.
+// 근거(교육부/신구 교육과정): 미적분Ⅰ=수학Ⅱ 계승(동일), 미적분Ⅱ←2015 미적분(일반→진로 이동),
+//   물리학Ⅰ/화학Ⅰ/생명과학Ⅰ/지구과학Ⅰ(일반)→동명 2022 일반선택, Ⅱ과목(진로)→2022 진로선택 2과목으로 분화.
+//   한국지리/세계지리/동아시아사→한국지리 탐구/세계시민과 지리/동아시아 역사 기행.
+const SUBJ_ALIAS_RAW = [
+  ['수학Ⅰ', ['대수']],
+  ['수학Ⅱ', ['미적분Ⅰ']],
+  ['미적분', ['미적분Ⅱ']],
+  ['물리학Ⅰ', ['물리학']],
+  ['물리학Ⅱ', ['역학과 에너지', '전자기와 양자']],
+  ['화학Ⅰ', ['화학']],
+  ['화학Ⅱ', ['물질과 에너지', '화학 반응의 세계']],
+  ['생명과학Ⅰ', ['생명과학']],
+  ['생명과학Ⅱ', ['세포와 물질대사', '생물의 유전']],
+  ['지구과학Ⅰ', ['지구과학']],
+  ['지구과학Ⅱ', ['지구시스템과학', '행성우주과학']],
+  ['한국지리', ['한국지리 탐구']],
+  ['세계지리', ['세계시민과 지리']],
+  ['동아시아사', ['동아시아 역사 기행']],
+];
+const SUBJ_ALIAS = {};
+SUBJ_ALIAS_RAW.forEach(p => { SUBJ_ALIAS[normSubj(p[0])] = p[1].map(normSubj); });
+// 두 과목 키가 같거나, 한쪽이 다른쪽의 2015↔2022 별칭이면 동일 과목으로 본다.
+function subjMatch(a, b){
+  if (a === b) return true;
+  const ea = SUBJ_ALIAS[a]; if (ea && ea.indexOf(b) >= 0) return true;
+  const eb = SUBJ_ALIAS[b]; if (eb && eb.indexOf(a) >= 0) return true;
+  return false;
+}
+function hasMy(name){
+  const k = normSubj(name);
+  if (myKeys.has(k)) return true;
+  for (const mk of myKeys) if (subjMatch(k, mk)) return true;
+  return false;
+}
 function renderPalette(){
   const pal = $('msPalette'); if(!pal) return;
   // 팔레트 = 서버 인기 과목 + 내가 직접 추가했지만 목록에 없던 과목

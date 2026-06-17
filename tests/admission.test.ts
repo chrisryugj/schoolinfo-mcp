@@ -30,6 +30,23 @@ test("캠퍼스 분할(강원대) 병합 + campus 태그", () => {
   assert.ok(u.majors.some((m) => m.campus), "campus 태그 없음");
 });
 
+test("본교/분교 분리: 괄호 없는 이름은 본교만, 분교명은 그 분교만", () => {
+  // "건국대"는 서울 본교만(글로컬 충주 섞이지 않음)
+  const ku = findAdmissionUniversity("건국대")!;
+  assert.equal(ku.name, "건국대");
+  assert.equal(ku.area, "서울");
+  assert.ok(!ku.majors.some((m) => m.campus), "본교에 글로컬 campus 섞임");
+  // "건국대(글로컬)"는 글로컬 분교만
+  const kuG = findAdmissionUniversity("건국대(글로컬)")!;
+  assert.ok(kuG.name.includes("글로컬"), `name=${kuG.name}`);
+  assert.equal(kuG.area, "충북");
+  // 한양대/단국대도 동일
+  assert.equal(findAdmissionUniversity("한양대")!.area, "서울");
+  assert.equal(findAdmissionUniversity("한양대(ERICA)")!.area, "경기");
+  assert.equal(findAdmissionUniversity("단국대")!.area, "경기");
+  assert.equal(findAdmissionUniversity("단국대(천안)")!.area, "충남");
+});
+
 test("부산대 모집단위에 핵심과목·기준 문자열 보존", () => {
   const u = findAdmissionUniversity("부산대")!;
   const m = searchAdmissionMajors(u, "경영")[0];

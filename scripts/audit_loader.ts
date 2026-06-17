@@ -32,13 +32,24 @@ for (const u of DB.universities) {
   }
 }
 
-// 4) 캠퍼스 병합 합계 검증
+// 4) 캠퍼스 처리 검증
+//    - 본교(괄호 없는 이름) 있는 그룹(건국/한양/단국): 본교명·분교명이 각자 그 캠퍼스만 단독 서빙.
+//    - 본교 없는 동급 캠퍼스 분할(강원/전남): 어느 캠퍼스로 입력해도 전체 병합 + campus 태그.
+const campus = (s: string) => /\(/.test(s);
 for (const [base, group] of byBase) {
   if (group.length < 2) continue;
-  const merged = findAdmissionUniversity(group[0].name);
-  const sum = group.reduce((s: number, g: any) => s + g.majors.length, 0);
-  ck(merged!.majors.length === sum, `캠퍼스병합 합계 ${base}: ${merged!.majors.length} vs ${sum}`);
-  ck(merged!.majors.some((m: any) => m.campus), `캠퍼스 태그 누락 ${base}`);
+  const hasMain = group.some((g: any) => !campus(g.name));
+  if (hasMain) {
+    for (const g of group) {
+      const f = findAdmissionUniversity(g.name);
+      ck(f!.majors.length === g.majors.length, `본교/분교 분리 ${g.name}: ${f!.majors.length} vs ${g.majors.length}`);
+    }
+  } else {
+    const merged = findAdmissionUniversity(group[0].name);
+    const sum = group.reduce((s: number, g: any) => s + g.majors.length, 0);
+    ck(merged!.majors.length === sum, `캠퍼스병합 합계 ${base}: ${merged!.majors.length} vs ${sum}`);
+    ck(merged!.majors.some((m: any) => m.campus), `캠퍼스 태그 누락 ${base}`);
+  }
 }
 
 // 5) 검색 필터 정확성 (전 대학에서 첫 모집단위 토큰으로)

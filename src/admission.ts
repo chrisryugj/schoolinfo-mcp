@@ -49,8 +49,20 @@ export function listAdmissionUniversities(): { name: string; region?: string; ar
 export function findAdmissionUniversity(query: string): AdmissionUniversity | undefined {
   const qk = uniKey(query);
   if (!qk) return undefined;
-  let matches = ALL.filter((u) => baseKey(u.name) === qk);
-  if (!matches.length) matches = ALL.filter((u) => baseKey(u.name).includes(qk) || qk.includes(baseKey(u.name)));
+  // 1) 캠퍼스까지 포함한 정확 매칭 — "건국대"는 본교(서울)만, "건국대(글로컬)"은 그 분교만.
+  let matches = ALL.filter((u) => uniKey(u.name) === qk);
+  if (matches.length) {
+    // 단, 괄호 없는 본교가 아예 없는 캠퍼스 분할(강원대(춘천)·(삼척), 전남대(광주)·(여수))은
+    // 어느 캠퍼스로 입력하든 동급이므로 기준명 그룹 전체를 병합한다.
+    const base = baseKey(matches[0].name);
+    const group = ALL.filter((u) => baseKey(u.name) === base);
+    if (group.length > 1 && !group.some((u) => campusOf(u.name) === "")) matches = group;
+  } else {
+    // 2) 기준명 정확 매칭 — "강원대"(통합명) 입력 시 캠퍼스 분할 병합.
+    matches = ALL.filter((u) => baseKey(u.name) === qk);
+    // 3) 부분/약칭 매칭.
+    if (!matches.length) matches = ALL.filter((u) => baseKey(u.name).includes(qk) || qk.includes(baseKey(u.name)));
+  }
   if (!matches.length) return undefined;
   if (matches.length === 1) return matches[0];
   // 같은 기준명(캠퍼스 분할)만 병합 — 서로 다른 대학이 섞이면 첫 매칭만

@@ -11,6 +11,7 @@ import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEval
 import type { School } from "./client.js";
 import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, fetchMeal, todayKstYmd, addDaysYmd, weekRange, formatWeek, upcomingHighlights, fetchAreaExams, formatExamCalendar } from "./neis.js";
 import { renderPage } from "./web.js";
+import { findAdmissionUniversity, searchAdmissionMajors, listAdmissionUniversities } from "./admission.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
 
@@ -225,6 +226,25 @@ const server = http.createServer(async (req, res) => {
         const word = (q.get("word") ?? "").slice(0, MAX_NAME_LEN);
         const hits = await searchSchoolsByName(word);
         return json(res, 200, { schools: hits });
+      }
+
+      // 대학 전공 연계 권장 이수과목 — 정적 DB, 인증키 불필요
+      if (url.pathname === "/api/admission") {
+        const university = (q.get("university") ?? "").slice(0, MAX_NAME_LEN);
+        const major = (q.get("major") ?? "").slice(0, MAX_NAME_LEN);
+        if (!university) {
+          return json(res, 200, { universities: listAdmissionUniversities() });
+        }
+        const uni = findAdmissionUniversity(university);
+        if (!uni) {
+          return json(res, 404, { error: "해당 대학의 권장 이수과목 데이터가 없습니다.", universities: listAdmissionUniversities() });
+        }
+        const majors = searchAdmissionMajors(uni, major || undefined);
+        return json(res, 200, {
+          university: uni.name, region: uni.region, area: uni.area,
+          source: uni.source, sourceUrl: uni.sourceUrl,
+          guide: uni.guide, query: major || null, majors,
+        });
       }
 
       if (!process.env.SCHOOLINFO_API_KEY) {

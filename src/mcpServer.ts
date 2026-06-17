@@ -28,6 +28,12 @@ import {
   autoFetchEvaluation,
   listEvaluationDocs,
 } from "./evaluation.js";
+import {
+  findAdmissionUniversity,
+  searchAdmissionMajors,
+  formatAdmission,
+  listAdmissionUniversities,
+} from "./admission.js";
 
 const KINDS = Object.keys(SCHOOL_KIND) as [SchoolKindName, ...SchoolKindName[]];
 const ALLOWED_EXT = new Set([".hwp", ".hwpx", ".hwpml", ".pdf", ".xlsx", ".xls", ".docx"]);
@@ -354,6 +360,31 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
       try {
         const rep = await getAreaReport(getClient(), sido, sgg, kind, year);
         return ok(formatAreaReport(rep, names));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.10 대학 전공 연계 권장 이수과목 ──────────────────
+  // "○○대 ○○학과 가려면 어떤 과목을 들어야 하나" — 대학 입학전형 시행계획의
+  // 전공 연계 권장과목 표를 정적 DB로 큐레이션해 조회한다. (학교알리미/NEIS 키 불필요)
+  server.tool(
+    "get_admission_subjects",
+    "대학 모집단위(학과)별 '전공 연계 권장 이수과목'을 조회합니다. 특정 대학·학과를 가려면 고등학교에서 어떤 선택과목(예: 미적분·기하·물리학Ⅱ)을 이수하는 게 좋은지 알려줍니다. university만 주면 그 대학 전체, major까지 주면 해당 학과만 보여줍니다.",
+    {
+      university: z.string().describe("대학명 (예: 서울대학교, 서울대)"),
+      major: z.string().optional().describe("학과/모집단위 또는 단과대학명 (부분 일치, 예: 컴퓨터공학부, 의예과, 공과대학)"),
+    },
+    async ({ university, major }) => {
+      try {
+        const uni = findAdmissionUniversity(university);
+        if (!uni) {
+          const have = listAdmissionUniversities().map((u) => u.name).join(", ");
+          return ok(`"${university}"의 권장 이수과목 데이터가 아직 없습니다.\n현재 제공 대학: ${have || "(없음)"}`);
+        }
+        const majors = searchAdmissionMajors(uni, major);
+        return ok(formatAdmission(uni, majors, major));
       } catch (e: any) {
         return err(`오류: ${e.message}`);
       }

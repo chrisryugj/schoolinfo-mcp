@@ -183,7 +183,6 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .school .tag{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:.04em; text-transform:uppercase;}
   .school .meta{font-size:14px; color:var(--ink-dim); margin:0 0 13px;}
   .acts{display:flex; gap:8px; flex-wrap:wrap;}
-  .acts.more-acts{margin-top:8px;}
   .count{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin:0 2px 6px;}
 
   /* ===== Output (markdown) ===== */
@@ -312,6 +311,30 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .sched-note{color:var(--mut); font-size:13px;}
   .fchip:hover{color:var(--ink); background:var(--bg2);}
   .fchip[aria-pressed="true"]{color:#fff; background:var(--accent); border-color:var(--accent);}
+  /* 대학 전공별 권장 이수과목 */
+  .adm{margin-top:18px;}
+  .adm-head{font-size:17px; font-weight:700; letter-spacing:-0.01em; color:var(--ink);}
+  .adm-sub{margin:6px 0 14px; color:var(--ink-dim); font-size:14px; line-height:1.55;}
+  .adm-card{margin-top:16px;}
+  .adm-result-head{font-size:15px; font-weight:700; color:var(--ink); margin-bottom:2px;}
+  .adm-src{font-size:12px; color:var(--mut); margin-bottom:10px;}
+  .adm-guide{background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:var(--radius-sm); padding:10px 13px; margin:10px 0 14px; font-size:12.5px; line-height:1.5; color:var(--accent-ink);}
+  .adm-major{padding:12px 0; border-top:1px solid var(--hair);}
+  .adm-major:first-of-type{border-top:none;}
+  .adm-major .mu{font-weight:600; font-size:14.5px; color:var(--ink);}
+  .adm-major .mc{font-size:12px; color:var(--mut); margin-left:6px;}
+  .adm-major .mcampus{font-size:11px; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:6px; padding:1px 6px; margin-left:6px;}
+  .adm-loc{font-size:12px; font-weight:500; color:var(--mut);}
+  .adm-row{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; margin-top:7px;}
+  .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .subj{font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
+  .subj.core{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .subj-text{font-size:13px; color:var(--ink-dim); line-height:1.5; flex:1; min-width:0;}
+  .adm-row.note .subj-text{color:var(--mut); font-size:12.5px;}
+  .adm-none{color:var(--mut); font-size:13px; margin-top:6px;}
+  /* 학년 바로가기 (긴 평가계획 마크다운 상단 고정) */
+  .gradenav{position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:7px; align-items:center;
+    margin:14px 0 4px; padding:9px 0; background:var(--surface); border-bottom:1px solid var(--hair);}
   .fchip.sub[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent); border-color:var(--accent-line);}
 
   /* ===== Reveal on scroll ===== */
@@ -388,6 +411,18 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <section id="recent" class="recent hidden"></section>
   <section id="results"></section>
   <section id="output"></section>
+
+  <section class="surface adm" id="admission">
+    <div class="adm-head">🎓 대학 전공별 권장 이수과목</div>
+    <p class="adm-sub">희망 <b>대학·학과</b>를 가려면 고등학교에서 어떤 선택과목을 이수하는 게 좋은지 알려드려요. <span class="nb">수도권·영남·중부·호남 49개 대학</span>의 전공 연계 권장(반영)과목.</p>
+    <div class="row">
+      <div style="flex:1; min-width:46%"><label>대학</label><input id="admUni" list="admUniList" placeholder="예: 서울대, 연세대" maxlength="30" autocomplete="off" enterkeyhint="search"/></div>
+      <div style="flex:1; min-width:46%"><label>학과·계열 (선택)</label><input id="admMajor" placeholder="예: 컴퓨터공학부, 의예과" maxlength="30" autocomplete="off" enterkeyhint="search"/></div>
+    </div>
+    <datalist id="admUniList"></datalist>
+    <button id="admFind" class="btn btn-primary full" style="margin-top:14px">권장과목 보기</button>
+    <div id="admOut"></div>
+  </section>
 
   <section class="section">
     <span class="chapter-label">무엇을 알 수 있나요</span>
@@ -476,19 +511,18 @@ function schoolCard(ctx, opts){
     ? '<a class="btn btn-line btn-sm" href="'+h(hp)+'" target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
     : (opts.resolveHome && ctx.kind ? '<button class="btn btn-line btn-sm" data-act="home" '+d+'>🌐 홈페이지</button>' : '');
   // 학교급(kind)을 모르면 공시/평가계획 조회가 불가하므로 버튼 대신 안내 (지역검색 유도)
-  // 핵심 4개는 항상 노출, 나머지는 '더보기'로 접어 카드 복잡도를 낮춘다.
-  const core = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
+  // 전체 기능을 기본 노출(두 줄로 자연 줄바꿈) — 접기 없이 한눈에.
+  const allBtns = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
     + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
     + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>';
-  const more = '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
     + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
     + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
     + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>'
     + hpBtn;
   const acts = ctx.kind
-    ? '<div class="acts">' + core + '<button class="btn btn-line btn-sm" data-more>더보기 ▾</button></div>'
-      + '<div class="acts more-acts hidden">' + more + '</div>'
+    ? '<div class="acts">' + allBtns + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
   return '<div class="school fade">'
@@ -540,14 +574,70 @@ async function findByRegion(){
 $('findRegion').onclick = findByRegion;
 $('name').addEventListener('keydown', e => { if(e.key==='Enter') findByRegion(); });
 
+/* ── 대학 전공별 권장 이수과목 (학교 검색과 독립) ── */
+(async function initAdmission(){
+  try{
+    const r = await fetch('/api/admission'); const d = await r.json();
+    const dl = $('admUniList');
+    if (dl && d.universities) dl.innerHTML = d.universities.map(u => '<option value="'+h(u.name)+'">').join('');
+  }catch{}
+})();
+// 핵심/권장 과목은 대학마다 형식이 달라(과목 나열·교과명·일반/진로선택 구분) 원문 문자열.
+// 쉼표로 깔끔히 나열된 경우만 칩으로, 그 외(긴 문장·콜론 포함)는 텍스트로 보여준다.
+function subjCell(text, cls){
+  const t = (text||'').trim();
+  if (!t) return '<span class="subj">—</span>';
+  if (t.length <= 60 && t.indexOf(':') < 0 && t.indexOf('·') < 0){
+    return t.split(',').map(s => s.trim()).filter(Boolean)
+      .map(s => '<span class="subj'+(cls?' '+cls:'')+'">'+h(s)+'</span>').join('');
+  }
+  return '<span class="subj-text">'+h(t)+'</span>';
+}
+function renderAdmission(d){
+  if (!d.majors || !d.majors.length){
+    $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력해 전체를 보세요.'); return;
+  }
+  const src = safeUrl(d.sourceUrl);
+  const loc = [d.region, d.area].filter(Boolean).join(' · ');
+  const head = '<div class="adm-result-head">🎓 '+h(d.university)+(loc?' <span class="adm-loc">'+h(loc)+'</span>':'')+' 전공 연계 권장 이수과목</div>'
+    + '<div class="adm-src">출처: '+h(d.source)+(src?' · <a href="'+h(src)+'" target="_blank" rel="noopener noreferrer">홈페이지</a>':'')+(d.query?' · 검색: "'+h(d.query)+'"':'')+' · '+d.majors.length+'개 모집단위</div>';
+  const guide = d.guide ? '<div class="adm-guide">'+h(d.guide)+'</div>' : '';
+  const body = d.majors.map(m => {
+    const empty = !(m.core||'').trim() && !(m.recommended||'').trim() && !(m.note||'').trim();
+    const tag = (m.campus?'<span class="mcampus">'+h(m.campus)+'</span>':'') + (m.college?'<span class="mc">'+h(m.college)+'</span>':'');
+    let rows = '';
+    if (empty){
+      rows = '<div class="adm-none">별도 권장과목 없음 — 진로·적성에 따른 선택과목 이수 권장</div>';
+    } else {
+      if ((m.core||'').trim()) rows += '<div class="adm-row"><span class="lab">핵심</span>'+subjCell(m.core,'core')+'</div>';
+      if ((m.recommended||'').trim()) rows += '<div class="adm-row"><span class="lab">권장</span>'+subjCell(m.recommended)+'</div>';
+      if ((m.note||'').trim()) rows += '<div class="adm-row note"><span class="lab">기준</span><span class="subj-text">'+h(m.note)+'</span></div>';
+    }
+    return '<div class="adm-major"><span class="mu">'+h(m.unit)+'</span>'+tag+rows+'</div>';
+  }).join('');
+  $('admOut').innerHTML = '<div class="card fade adm-card">'+head+guide+body+'</div>';
+}
+async function loadAdmission(){
+  const university = $('admUni').value.trim();
+  const major = $('admMajor').value.trim();
+  if (!university){ $('admOut').innerHTML = info('대학명을 입력하세요. (예: 서울대, 연세대)'); return; }
+  $('admOut').innerHTML = spinner('권장 이수과목을 찾는 중…');
+  try{
+    const r = await fetch('/api/admission?'+new URLSearchParams({university, major}));
+    const d = await r.json();
+    if (d.error){
+      const have = (d.universities||[]).map(u => u.name).join(', ');
+      $('admOut').innerHTML = info(h(d.error)+(have?'<br>현재 제공: '+h(have):'')); return;
+    }
+    renderAdmission(d);
+  }catch(e){ $('admOut').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+}
+$('admFind').onclick = loadAdmission;
+$('admUni').addEventListener('keydown', e => { if(e.key==='Enter') loadAdmission(); });
+$('admMajor').addEventListener('keydown', e => { if(e.key==='Enter') loadAdmission(); });
+
 /* ── 이벤트 위임 ── */
 document.addEventListener('click', (e) => {
-  const more = e.target.closest('[data-more]');
-  if (more){
-    const sc = more.closest('.school'); const box = sc && sc.querySelector('.more-acts');
-    if (box){ const hid = box.classList.toggle('hidden'); more.textContent = hid ? '더보기 ▾' : '접기 ▴'; }
-    return;
-  }
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const act = b.getAttribute('data-act');
@@ -698,7 +788,7 @@ function renderStructured(ctx, d){
     drawDetail();
   };
   card.addEventListener('click', (e) => {
-    if (e.target.closest('[data-fulldoc]')){ openModal('📄 '+h(d.school)+' 평가계획 원문', mdToOut(d.markdown)); return; }
+    if (e.target.closest('[data-fulldoc]')){ openModal('📄 '+h(d.school)+' 평가계획 원문', mdWithGradeNav(d.markdown)); return; }
     const gb = e.target.closest('[data-g]');
     if (gb){ gi = +gb.getAttribute('data-g'); subj = '전체'; draw(); return; }
     const sb = e.target.closest('[data-s]');
@@ -927,10 +1017,45 @@ function mdToOut(md){
   });
   return wrap;
 }
+// 긴 평가계획 마크다운(학년이 3→2→1 순으로 길게 이어짐)에서 학년 섹션을 찾아
+// 상단에 1·2·3학년 바로가기 칩을 만든다. 학년 표제를 못 찾으면(2개 미만) 생략.
+function gradeNav(wrap){
+  const re = /^\s*([1-6])\s*학년/;
+  const seen = new Map();
+  // 평가계획 hwp 변환물엔 마크다운 헤딩(#)이 없고 학년 구분이 평범한 <p>("N학년 교과별 평가 계획")
+  // 또는 표 머리(<th>)로 나온다. 짧은 텍스트가 'N학년'으로 시작하는 첫 요소를 학년 섹션 시작으로 본다.
+  wrap.querySelectorAll('h1,h2,h3,h4,h5,h6,strong,b,caption,summary,p,th').forEach(el => {
+    const t = (el.textContent||'').trim();
+    const m = re.exec(t);
+    if (!m || t.length > 20 || seen.has(m[1])) return;
+    if (!el.id) el.id = 'gnav-'+m[1];
+    el.style.scrollMarginTop = '52px';
+    seen.set(m[1], el.id);
+  });
+  if (seen.size < 2) return null;
+  const bar = document.createElement('div'); bar.className='gradenav';
+  bar.innerHTML = '<span class="flabel">바로가기</span>'
+    + [...seen.keys()].sort().map(n => '<button class="fchip" data-gnav="'+seen.get(n)+'">'+n+'학년</button>').join('');
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-gnav]'); if (!b) return;
+    const t = document.getElementById(b.getAttribute('data-gnav'));
+    if (t) t.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  return bar;
+}
+// 평가계획 본문 + (학년 표제가 2개 이상이면) 상단 학년 바로가기를 묶어 반환.
+function mdWithGradeNav(md){
+  const out = mdToOut(md);
+  const nav = gradeNav(out);
+  const box = document.createElement('div');
+  if (nav) box.appendChild(nav);
+  box.appendChild(out);
+  return box;
+}
 function render(titleHtml, md, dlHtml){
   const card = document.createElement('div'); card.className='card fade';
   card.innerHTML = '<div class="result-head"><h2>'+titleHtml+'</h2></div>' + (dlHtml||'');
-  card.appendChild(mdToOut(md));
+  card.appendChild(mdWithGradeNav(md));
   $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }

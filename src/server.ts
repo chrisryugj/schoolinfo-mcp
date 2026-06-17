@@ -11,7 +11,7 @@ import { listEvaluationDocs, fetchEvaluationBySeq, evaluationGuide, downloadEval
 import type { School } from "./client.js";
 import { findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, fetchMeal, todayKstYmd, addDaysYmd, weekRange, formatWeek, upcomingHighlights, fetchAreaExams, formatExamCalendar } from "./neis.js";
 import { renderPage } from "./web.js";
-import { findAdmissionUniversity, searchAdmissionMajors, listAdmissionUniversities } from "./admission.js";
+import { findAdmissionUniversity, searchAdmissionMajors, listAdmissionUniversities, commonSubjects } from "./admission.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildMcpServer } from "./mcpServer.js";
 
@@ -233,7 +233,7 @@ const server = http.createServer(async (req, res) => {
         const university = (q.get("university") ?? "").slice(0, MAX_NAME_LEN);
         const major = (q.get("major") ?? "").slice(0, MAX_NAME_LEN);
         if (!university) {
-          return json(res, 200, { universities: listAdmissionUniversities() });
+          return json(res, 200, { universities: listAdmissionUniversities(), subjects: commonSubjects() });
         }
         const uni = findAdmissionUniversity(university);
         if (!uni) {

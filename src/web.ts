@@ -98,6 +98,15 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   main{max-width:680px; margin:0 auto; padding:0 22px;}
 
+  /* ===== Mode tabs (우리 학교 / 대학 진학) ===== */
+  .modetab{display:flex; gap:9px; max-width:680px; margin:0 auto; padding:22px 22px 0;}
+  .mt-btn{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    padding:13px 12px; border:1px solid var(--hair-strong); border-radius:12px; background:var(--surface);
+    font-family:inherit; font-weight:700; font-size:14.5px; color:var(--ink-dim); cursor:pointer;
+    transition:background .2s, color .2s, border-color .2s; -webkit-tap-highlight-color:transparent;}
+  .mt-btn[aria-selected="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .mt-btn:not([aria-selected="true"]):hover{background:var(--bg2); color:var(--ink);}
+
   /* ===== Hero ===== */
   .hero{padding:72px 0 36px;}
   .eyebrow{
@@ -332,6 +341,26 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .subj-text{font-size:13px; color:var(--ink-dim); line-height:1.5; flex:1; min-width:0;}
   .adm-row.note .subj-text{color:var(--mut); font-size:12.5px;}
   .adm-none{color:var(--mut); font-size:13px; margin-top:6px;}
+  /* 내 이수 과목 체크리스트 */
+  .mysubj{padding:0; overflow:hidden; margin-bottom:14px;}
+  .mysubj>summary{cursor:pointer; padding:15px 18px; font-size:14.5px; font-weight:700; color:var(--ink); list-style:none; display:flex; align-items:center; gap:8px; -webkit-tap-highlight-color:transparent;}
+  .mysubj>summary::-webkit-details-marker{display:none;}
+  .mysubj>summary .ms-count{font-family:var(--mono); font-size:11px; font-weight:600; color:var(--accent); margin-left:auto;}
+  .mysubj>summary .mk{color:var(--mut); font-size:13px; transition:transform .2s;}
+  .mysubj[open]>summary .mk{transform:rotate(180deg);}
+  .ms-body{padding:0 18px 18px; border-top:1px solid var(--hair);}
+  .ms-help{margin:13px 0 12px; font-size:12.5px; color:var(--ink-dim); line-height:1.55;}
+  .ms-palette{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:13px;}
+  .ms-chip{font-size:12.5px; padding:6px 12px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s; font-family:inherit; -webkit-tap-highlight-color:transparent;}
+  .ms-chip:hover{background:var(--bg2); color:var(--ink);}
+  .ms-chip[aria-pressed="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .ms-add{display:flex; gap:7px;}
+  .ms-add input{flex:1; padding:9px 12px; border:1px solid var(--hair-strong); border-radius:var(--radius-sm); font-size:15px; background:var(--bg2); color:var(--ink); font-family:inherit;}
+  .ms-add input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+  /* 권장과목 칩: 내가 보유한 과목은 초록으로 강조, 모집단위엔 커버리지 배지 */
+  .subj.have{background:var(--safe); color:#fff; border-color:var(--safe);}
+  .adm-cov{display:inline-block; font-family:var(--mono); font-size:10.5px; letter-spacing:.03em; color:var(--safe); margin-left:8px; font-weight:700; vertical-align:middle;}
+  .adm-cov.none{color:var(--ink-dimmer);}
   /* 학년 바로가기 (긴 평가계획 마크다운 상단 고정) */
   .gradenav{position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:7px; align-items:center;
     margin:14px 0 4px; padding:9px 0; background:var(--surface); border-bottom:1px solid var(--hair);}
@@ -374,6 +403,12 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <a class="nav-link" href="https://chris.gomdori.app" target="_blank" rel="noopener noreferrer">딴짓하는 류주임 ↗</a>
 </div></nav>
 <main>
+  <div class="modetab" role="tablist" aria-label="보기 전환">
+    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true">🏫 우리 학교</button>
+    <button id="mvUni" class="mt-btn" role="tab" aria-selected="false">🎓 대학 진학</button>
+  </div>
+
+  <div id="viewSchool">
   <section class="hero">
     <span class="eyebrow"><span class="pulse"></span>전국 초·중·고 공시 · 급식 · 수행평가</span>
     <h1 class="display">오늘 급식부터 수행평가까지,<br/><span class="accent">학교 이름 하나로.</span></h1>
@@ -412,9 +447,49 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <section id="results"></section>
   <section id="output"></section>
 
-  <section class="surface adm" id="admission">
-    <div class="adm-head">🎓 대학 전공별 권장 이수과목</div>
-    <p class="adm-sub">희망 <b>대학·학과</b>를 가려면 고등학교에서 어떤 선택과목을 이수하는 게 좋은지 알려드려요. <span class="nb">수도권·영남·중부·호남 49개 대학</span>의 전공 연계 권장(반영)과목.</p>
+  <section class="section">
+    <span class="chapter-label">무엇을 알 수 있나요</span>
+    <h2>학교 이름 하나면<br/>이만큼 나옵니다.</h2>
+    <p class="lead">학교알리미 공시 35종, 첨부파일에 묻혀 있던 수행평가 계획, 그리고 NEIS의 매일 급식과 학사일정까지 한자리에 모았어요.</p>
+
+    <div class="feat reveal">
+      <div class="k">학부모가 제일 많이 찾는 것</div>
+      <h3>수행평가 계획</h3>
+      <p>아이가 무엇으로 평가받는지 — <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있어 열어보기 번거로운 이 자료를, 자동으로 받아 표로 정리해 드려요. 원본 파일도 그대로 내려받을 수 있고요.</p>
+    </div>
+    <div class="feat reveal">
+      <div class="k">매일 들여다보게 되는 것</div>
+      <h3>오늘 급식, 알레르기는 걸러서</h3>
+      <p>날짜별 <b>식단과 칼로리</b>는 기본. 아이가 피해야 할 알레르기(우유·땅콩 등)를 적어 두면 위험한 메뉴만 따로 갈라 보여줘요. 이번주 브리핑과 학사일정, 시험 <span class="nb">D-day</span>도 같이 챙겨 드립니다.</p>
+    </div>
+
+    <details class="cat-list reveal">
+      <summary>공시 35종 전체 보기 <span class="mk">▾</span></summary>
+      ${catRows}
+    </details>
+  </section>
+  </div><!-- /viewSchool -->
+
+  <div id="viewUni" class="hidden">
+  <section class="hero">
+    <span class="eyebrow"><span class="pulse"></span>전국 49개 대학 · 전공별 권장과목</span>
+    <h1 class="display">가고 싶은 대학이<br/><span class="accent">권하는 과목.</span></h1>
+    <p class="hero-sub">목표한 <b>대학·학과</b>가 고등학교 때 어떤 선택과목을 들어 두길 바라는지 모았어요. 수도권·영남·중부·호남 <b>49개 대학</b>의 전공별 권장·반영 과목입니다.</p>
+  </section>
+
+  <details class="surface mysubj" id="mySubj">
+    <summary>📚 내가 들은·들을 과목 <span class="ms-count" id="msCount"></span><span class="mk">▾</span></summary>
+    <div class="ms-body">
+      <p class="ms-help">미리 골라 두면 아래 권장과목과 자동으로 맞춰 ✓로 표시해 드려요. 어느 학과가 내 선택과목과 잘 맞는지 한눈에 보입니다. (선택은 이 기기에만 저장돼요)</p>
+      <div class="ms-palette" id="msPalette"></div>
+      <div class="ms-add">
+        <input id="msInput" placeholder="목록에 없으면 직접 추가 (예: 미적분Ⅱ)" maxlength="20" autocomplete="off"/>
+        <button class="btn btn-soft btn-sm" id="msAdd">추가</button>
+      </div>
+    </div>
+  </details>
+
+  <section class="surface adm">
     <div class="row">
       <div style="flex:1; min-width:46%"><label>대학</label><input id="admUni" list="admUniList" placeholder="예: 서울대, 연세대" maxlength="30" autocomplete="off" enterkeyhint="search"/></div>
       <div style="flex:1; min-width:46%"><label>학과·계열 (선택)</label><input id="admMajor" placeholder="예: 컴퓨터공학부, 의예과" maxlength="30" autocomplete="off" enterkeyhint="search"/></div>
@@ -423,28 +498,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     <button id="admFind" class="btn btn-primary full" style="margin-top:14px">권장과목 보기</button>
     <div id="admOut"></div>
   </section>
-
-  <section class="section">
-    <span class="chapter-label">무엇을 알 수 있나요</span>
-    <h2>학교 이름 하나로<br/>이만큼 알려드립니다.</h2>
-    <p class="lead">학교알리미 공시 35종과 첨부파일 속 수행평가 계획, 여기에 NEIS의 매일 급식·학사일정까지 묶었습니다.</p>
-
-    <div class="feat reveal">
-      <div class="k">이 도구의 핵심</div>
-      <h3>수행평가 계획</h3>
-      <p>학부모가 가장 궁금해하는 <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있는 이 항목을 자동으로 내려받아 표로 바꿔 드리고, 원본 파일도 그대로 받을 수 있습니다.</p>
-    </div>
-    <div class="feat reveal">
-      <div class="k">매일 쓰는 기능 · NEIS</div>
-      <h3>오늘 급식 + 알레르기 회피 필터</h3>
-      <p>날짜별 <b>식단과 칼로리</b>에, 우리 아이가 피해야 할 알레르기(우유·땅콩 등)를 입력하면 위험 메뉴를 따로 갈라 보여줍니다. 이번주 브리핑, 학사일정, 시험 <span class="nb">D-day</span>도 함께 봅니다.</p>
-    </div>
-
-    <details class="cat-list reveal">
-      <summary>공시 35종 전체 보기 <span class="mk">▾</span></summary>
-      ${catRows}
-    </details>
-  </section>
+  </div><!-- /viewUni -->
 </main>
 
 <footer>
@@ -493,6 +547,20 @@ function setMode(mode){
 $('tabName').onclick = () => setMode('name');
 $('tabRegion').onclick = () => setMode('region');
 
+/* ── 최상위 모드: 우리 학교 / 대학 진학 ── */
+function setView(v){
+  const sch = v !== 'uni';
+  $('mvSchool').setAttribute('aria-selected', String(sch));
+  $('mvUni').setAttribute('aria-selected', String(!sch));
+  $('viewSchool').classList.toggle('hidden', !sch);
+  $('viewUni').classList.toggle('hidden', sch);
+  try{ history.replaceState(null, '', sch ? location.pathname : '#uni'); }catch(_){}
+  window.scrollTo({top:0});
+}
+$('mvSchool').onclick = () => setView('school');
+$('mvUni').onclick = () => setView('uni');
+if (location.hash.toLowerCase().indexOf('uni') >= 0) setView('uni');
+
 /* ── 지역 검색: 시군구 채우기 ── */
 $('sido').onchange = () => {
   const sgg = REGIONS[$('sido').value] || [];
@@ -511,21 +579,22 @@ function schoolCard(ctx, opts){
     ? '<a class="btn btn-line btn-sm" href="'+h(hp)+'" target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
     : (opts.resolveHome && ctx.kind ? '<button class="btn btn-line btn-sm" data-act="home" '+d+'>🌐 홈페이지</button>' : '');
   // 학교급(kind)을 모르면 공시/평가계획 조회가 불가하므로 버튼 대신 안내 (지역검색 유도)
-  // 전체 기능을 기본 노출(두 줄로 자연 줄바꿈) — 접기 없이 한눈에.
-  const allBtns = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
+  // 두 묶음으로 — 그 학교 하나만 보는 것 / 동네 학교끼리 견줘 보는 것.
+  const ownBtns = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
     + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
     + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
     + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
     + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>'
     // 학업성취(교과별 성적)는 중·고만 공시. 캡차로 자동조회 불가 → 학교알리미 딥링크 안내.
     + ((ctx.kind && (ctx.kind.indexOf('중학교')>=0 || ctx.kind.indexOf('고등학교')>=0))
         ? '<button class="btn btn-soft btn-sm" data-act="achievement" '+d+'>📈 학업성취도</button>' : '')
     + hpBtn;
+  const nearBtns = '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>';
   const acts = ctx.kind
-    ? '<div class="acts">' + allBtns + '</div>'
+    ? '<div class="count">이 학교 보기</div><div class="acts">' + ownBtns + '</div>'
+      + '<div class="count" style="margin-top:13px">동네 학교끼리 비교</div><div class="acts">' + nearBtns + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
   return '<div class="school fade">'
@@ -545,13 +614,13 @@ async function findByName(){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     const list = d.schools||[];
-    if (!list.length){ $('results').innerHTML = info('검색 결과가 없습니다. 이름을 더 정확히 입력해 보세요.'); return; }
+    if (!list.length){ $('results').innerHTML = info('찾는 학교가 없어요. 이름을 조금 더 정확히 적어보세요.'); return; }
     const cards = list.map(s => schoolCard(
       {sido:s.sido, sgg:s.sgg, kind:s.kind, name:s.name, shlIdfCd:s.shlIdfCd},
       {tag:s.kind, resolveHome:true, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
-  }catch(e){ $('results').innerHTML = info('검색 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findName').onclick = findByName;
 $('qname').addEventListener('keydown', e => { if(e.key==='Enter') findByName(); });
@@ -572,10 +641,49 @@ async function findByRegion(){
       {meta:[s.foundation, s.address, (s.tel?'☎ '+s.tel:'')].filter(Boolean).map(h).join(' · '), homepage:s.homepage}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
-  }catch(e){ $('results').innerHTML = info('검색 중 오류가 발생했습니다.'); }
+  }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findRegion').onclick = findByRegion;
 $('name').addEventListener('keydown', e => { if(e.key==='Enter') findByRegion(); });
+
+/* ── 내 이수 과목 체크리스트 (이 기기 localStorage) ──
+   매칭은 정규화 후 완전일치 — 로마자(Ⅰ/Ⅱ)만 숫자로 통일하고 공백·구분자를 떼어 비교한다.
+   학생은 자유 입력 대신 서버가 준 인기 과목 칩에서 고르므로 표기가 권장과목과 어긋나지 않는다. */
+const MY_KEY = "schoolinfo:mysubj";
+const ROMAN_C = {'Ⅰ':'1','Ⅱ':'2','Ⅲ':'3','Ⅳ':'4','Ⅴ':'5'};
+function normSubj(s){ return String(s||'').replace(/[ⅠⅡⅢⅣⅤ]/g,m=>ROMAN_C[m]||m).replace(/[\\s·∙‧・]/g,'').toLowerCase(); }
+function loadMy(){ try{ return JSON.parse(localStorage.getItem(MY_KEY)||'[]'); }catch{ return []; } }
+let myList = loadMy();
+let myKeys = new Set(myList.map(normSubj));
+let admSubjects = [];   // 서버가 준 인기 과목 팔레트
+let lastAdm = null;     // 마지막 결과 — 내 과목이 바뀌면 다시 그린다
+function saveMy(){ try{ localStorage.setItem(MY_KEY, JSON.stringify(myList.slice(0,80))); }catch{} myKeys = new Set(myList.map(normSubj)); }
+function hasMy(name){ return myKeys.has(normSubj(name)); }
+function renderPalette(){
+  const pal = $('msPalette'); if(!pal) return;
+  // 팔레트 = 서버 인기 과목 + 내가 직접 추가했지만 목록에 없던 과목
+  const extra = myList.filter(n => !admSubjects.some(s => normSubj(s)===normSubj(n)));
+  pal.innerHTML = admSubjects.concat(extra)
+    .map(s => '<button class="ms-chip" data-subj="'+h(s)+'" aria-pressed="'+hasMy(s)+'">'+(hasMy(s)?'✓ ':'')+h(s)+'</button>').join('');
+  const cnt = $('msCount'); if(cnt) cnt.textContent = myList.length ? myList.length+'개 선택' : '';
+}
+function toggleMy(name){
+  const k = normSubj(name);
+  myList = hasMy(name) ? myList.filter(x => normSubj(x)!==k) : myList.concat([name]);
+  saveMy(); renderPalette(); if (lastAdm) renderAdmission(lastAdm);
+}
+function addMyCustom(){
+  const inp = $('msInput'); if(!inp) return;
+  const v = inp.value.trim();
+  if (v && !hasMy(v)){ myList = myList.concat([v]); saveMy(); renderPalette(); if (lastAdm) renderAdmission(lastAdm); }
+  inp.value = '';
+}
+(function initMySubj(){
+  const pal = $('msPalette');
+  if (pal) pal.addEventListener('click', e => { const b = e.target.closest('[data-subj]'); if (b) toggleMy(b.getAttribute('data-subj')); });
+  const add = $('msAdd'); if (add) add.onclick = addMyCustom;
+  const inp = $('msInput'); if (inp) inp.addEventListener('keydown', e => { if (e.key==='Enter') addMyCustom(); });
+})();
 
 /* ── 대학 전공별 권장 이수과목 (학교 검색과 독립) ── */
 (async function initAdmission(){
@@ -583,20 +691,37 @@ $('name').addEventListener('keydown', e => { if(e.key==='Enter') findByRegion();
     const r = await fetch('/api/admission'); const d = await r.json();
     const dl = $('admUniList');
     if (dl && d.universities) dl.innerHTML = d.universities.map(u => '<option value="'+h(u.name)+'">').join('');
+    if (d.subjects){ admSubjects = d.subjects; renderPalette(); }
   }catch{}
 })();
 // 핵심/권장 과목은 대학마다 형식이 달라(과목 나열·교과명·일반/진로선택 구분) 원문 문자열.
-// 쉼표로 깔끔히 나열된 경우만 칩으로, 그 외(긴 문장·콜론 포함)는 텍스트로 보여준다.
+// 쉼표를 1차 구분자로 토막낸 뒤, 토막마다 칩/설명을 가른다:
+//  - 짧은 과목명(예: 미적분Ⅱ, 기술·가정) → 칩. '·'는 과목명 안에 들어가므로 구분자로 쓰지 않는다.
+//  - 조건문(예: "물리학/화학 중 1과목 이상") → 설명 텍스트로 한 줄 차지.
+// 콜론이 든 통짜 안내문(예: "공통: …")은 가르지 않고 그대로 텍스트.
 function subjCell(text, cls){
   const t = (text||'').trim();
   if (!t) return '<span class="subj">—</span>';
-  if (t.length <= 60 && t.indexOf(':') < 0 && t.indexOf('·') < 0){
-    return t.split(',').map(s => s.trim()).filter(Boolean)
-      .map(s => '<span class="subj'+(cls?' '+cls:'')+'">'+h(s)+'</span>').join('');
-  }
-  return '<span class="subj-text">'+h(t)+'</span>';
+  if (t.indexOf(':') >= 0) return '<span class="subj-text">'+h(t)+'</span>';
+  const isPhrase = s => s.length > 16 || /(이상|이하|중\\s*\\d|택\\s*\\d|과목|또는|권장|필수|\\/|\\()/.test(s);
+  return t.split(',').map(s => s.trim()).filter(Boolean)
+    .map(s => {
+      if (isPhrase(s)) return '<span class="subj-text" style="flex:1 1 100%">'+h(s)+'</span>';
+      const have = hasMy(s);
+      return '<span class="subj'+(cls?' '+cls:'')+(have?' have':'')+'">'+(have?'✓ ':'')+h(s)+'</span>';
+    }).join('');
+}
+// 내가 고른 과목으로 이 모집단위의 핵심과목을 몇 개나 채우는지 (칩으로 떨어지는 과목만 분모).
+function coverage(text){
+  const t = (text||'').trim();
+  if (!t || t.indexOf(':') >= 0) return null;
+  const isPhrase = s => s.length > 16 || /(이상|이하|중\\s*\\d|택\\s*\\d|과목|또는|권장|필수|\\/|\\()/.test(s);
+  const toks = t.split(',').map(s => s.trim()).filter(Boolean).filter(s => !isPhrase(s));
+  if (!toks.length) return null;
+  return { have: toks.filter(hasMy).length, total: toks.length };
 }
 function renderAdmission(d){
+  lastAdm = d;
   if (!d.majors || !d.majors.length){
     $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력해 전체를 보세요.'); return;
   }
@@ -616,7 +741,9 @@ function renderAdmission(d){
       if ((m.recommended||'').trim()) rows += '<div class="adm-row"><span class="lab">권장</span>'+subjCell(m.recommended)+'</div>';
       if ((m.note||'').trim()) rows += '<div class="adm-row note"><span class="lab">기준</span><span class="subj-text">'+h(m.note)+'</span></div>';
     }
-    return '<div class="adm-major"><span class="mu">'+h(m.unit)+'</span>'+tag+rows+'</div>';
+    const cov = (myList.length && !empty) ? coverage(m.core) : null;
+    const covBadge = cov ? '<span class="adm-cov'+(cov.have?'':' none')+'" title="내 과목으로 채운 핵심과목">✓ '+cov.have+'/'+cov.total+'</span>' : '';
+    return '<div class="adm-major"><span class="mu">'+h(m.unit)+'</span>'+covBadge+tag+rows+'</div>';
   }).join('');
   $('admOut').innerHTML = '<div class="card fade adm-card">'+head+guide+body+'</div>';
 }
@@ -633,7 +760,7 @@ async function loadAdmission(){
       $('admOut').innerHTML = info(h(d.error)+(have?'<br>현재 제공: '+h(have):'')); return;
     }
     renderAdmission(d);
-  }catch(e){ $('admOut').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+  }catch(e){ $('admOut').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('admFind').onclick = loadAdmission;
 $('admUni').addEventListener('keydown', e => { if(e.key==='Enter') loadAdmission(); });
@@ -740,7 +867,7 @@ async function loadEval(ctx, seq, year){
     }
     if (d.mode === 'structured'){ renderStructured(ctx, d); return; }
     render('📋 '+h(d.school)+' 수행평가 계획', d.markdown, downloadBar(ctx, d.downloads, d.year));
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 
 /* ── 학년/과목 선택 평가표 (통합형 학교) ──
@@ -832,7 +959,7 @@ async function loadAllEval(ctx, year){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year));
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 /* ── 학사일정 (NEIS) ── */
 async function loadSchedule(ctx){
@@ -842,7 +969,7 @@ async function loadSchedule(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderSchedule(d);
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 function renderSchedule(d){
   const items = d.items || [];
@@ -897,7 +1024,7 @@ async function loadMeal(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderMeal(ctx, d);
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 /* ── 이번주 브리핑 (NEIS 급식+학사일정+D-day) — 마크다운 렌더 ── */
 async function loadWeek(ctx){
@@ -907,7 +1034,7 @@ async function loadWeek(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📅 '+h(d.school||ctx.name)+' 이번주', d.markdown, '');
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 function renderMeal(ctx, d){
   const items = d.items||[];
@@ -959,7 +1086,7 @@ async function loadCompare(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderCompare(ctx, d);
-  }catch(e){ $('output').innerHTML = info('비교 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 function renderCompare(ctx, d){
   const schools = d.schools || [];
@@ -997,7 +1124,7 @@ async function loadReport(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 비교', d.markdown || (d.note||'표시할 학교가 없습니다.'), '');
-  }catch(e){ $('output').innerHTML = info('비교 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 /* ── 지역 시험 캘린더 (인근 학교 중간·기말 집계, NEIS) ── */
 async function loadExams(ctx){
@@ -1007,7 +1134,7 @@ async function loadExams(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📝 '+h(ctx.sgg||'')+' 시험 캘린더', d.markdown || (d.note||'표시할 시험 일정이 없습니다.'), '');
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 /* ── 핵심 공시 ── */
 async function loadDigest(ctx){
@@ -1017,7 +1144,7 @@ async function loadDigest(ctx){
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📊 '+h(d.school)+' 핵심 공시', d.markdown, '');
-  }catch(e){ $('output').innerHTML = info('조회 중 오류가 발생했습니다.'); }
+  }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 
 // 마크다운 → .out 컨테이너(표 모바일 가공 포함). render()와 모달이 공용.

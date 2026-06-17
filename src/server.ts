@@ -267,6 +267,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, {
           schools: list.map((s) => ({
             schoolCode: s.schoolCode,
+            shlIdfCd: s.shlIdfCd, // 학업성취 딥링크(학교별 공시 화면)용
             name: s.name,
             foundation: s.foundation,
             address: s.address,

@@ -505,7 +505,7 @@ function schoolCard(ctx, opts){
   const meta = opts.meta || '';
   const tag = opts.tag ? '<span class="tag">'+h(opts.tag)+'</span>' : '';
   const hp = safeUrl(opts.homepage);
-  const d = 'data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'"';
+  const d = 'data-sido="'+h(ctx.sido)+'" data-sgg="'+h(ctx.sgg)+'" data-kind="'+h(ctx.kind)+'" data-name="'+h(ctx.name)+'" data-shlidfcd="'+h(ctx.shlIdfCd||'')+'"';
   // 홈페이지: 지역검색은 주소를 이미 알아 바로 링크. 이름검색은 데이터에 없어 클릭 시 해석(resolveHome).
   const hpBtn = hp
     ? '<a class="btn btn-line btn-sm" href="'+h(hp)+'" target="_blank" rel="noopener noreferrer">🌐 홈페이지</a>'
@@ -520,6 +520,9 @@ function schoolCard(ctx, opts){
     + '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
     + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
     + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>'
+    // 학업성취(교과별 성적)는 중·고만 공시. 캡차로 자동조회 불가 → 학교알리미 딥링크 안내.
+    + ((ctx.kind && (ctx.kind.indexOf('중학교')>=0 || ctx.kind.indexOf('고등학교')>=0))
+        ? '<button class="btn btn-soft btn-sm" data-act="achievement" '+d+'>📈 학업성취도</button>' : '')
     + hpBtn;
   const acts = ctx.kind
     ? '<div class="acts">' + allBtns + '</div>'
@@ -530,7 +533,7 @@ function schoolCard(ctx, opts){
     + (meta ? '<p class="meta">'+meta+'</p>' : '')
     + acts + '</div>';
 }
-function ctxOf(el){ return {sido:el.getAttribute('data-sido'), sgg:el.getAttribute('data-sgg'), kind:el.getAttribute('data-kind'), name:el.getAttribute('data-name')}; }
+function ctxOf(el){ return {sido:el.getAttribute('data-sido'), sgg:el.getAttribute('data-sgg'), kind:el.getAttribute('data-kind'), name:el.getAttribute('data-name'), shlIdfCd:el.getAttribute('data-shlidfcd')}; }
 
 /* ── 이름으로 검색 ── */
 async function findByName(){
@@ -544,7 +547,7 @@ async function findByName(){
     const list = d.schools||[];
     if (!list.length){ $('results').innerHTML = info('검색 결과가 없습니다. 이름을 더 정확히 입력해 보세요.'); return; }
     const cards = list.map(s => schoolCard(
-      {sido:s.sido, sgg:s.sgg, kind:s.kind, name:s.name},
+      {sido:s.sido, sgg:s.sgg, kind:s.kind, name:s.name, shlIdfCd:s.shlIdfCd},
       {tag:s.kind, resolveHome:true, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
@@ -565,7 +568,7 @@ async function findByRegion(){
     const list = d.schools||[];
     if (!list.length){ $('results').innerHTML = info('검색 결과가 없습니다.'); return; }
     const cards = list.map(s => schoolCard(
-      {sido, sgg, kind, name:s.name},
+      {sido, sgg, kind, name:s.name, shlIdfCd:s.shlIdfCd},
       {meta:[s.foundation, s.address, (s.tel?'☎ '+s.tel:'')].filter(Boolean).map(h).join(' · '), homepage:s.homepage}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
@@ -651,8 +654,27 @@ document.addEventListener('click', (e) => {
   else if (act === 'exams'){ rememberFrom(b); loadExams(ctxOf(b)); }
   else if (act === 'evalSeq'){ loadEval(ctxOf(b), b.getAttribute('data-seq'), b.getAttribute('data-year')); }
   else if (act === 'evalAll'){ loadAllEval(ctxOf(b), b.getAttribute('data-year')); }
+  else if (act === 'achievement'){ rememberFrom(b); showAchievement(ctxOf(b)); }
   else if (act === 'home'){ openHomepage(ctxOf(b), b); }
 });
+
+/* ── 교과별 학업성취 사항 ── 학교알리미가 캡차로 보호 → 자동조회 불가, 딥링크로 직접 안내 */
+function achievementUrl(ctx){
+  const BASE = 'https://www.schoolinfo.go.kr';
+  return ctx.shlIdfCd
+    ? BASE+'/ei/ss/Pneiss_b01_s0.do?SHL_IDF_CD='+encodeURIComponent(ctx.shlIdfCd)
+    : BASE+'/ei/ss/pneiss_a03_s0.do';
+}
+function showAchievement(ctx){
+  const url = achievementUrl(ctx);
+  $('output').innerHTML = '<div class="card">'
+    + '<h3>📈 '+h(ctx.name)+' — 교과별 학업성취 사항</h3>'
+    + '<p class="lead">과목별 <b>평균점수</b>와 <b>성취도(A~E) 분포비율</b>입니다. 이 항목은 학교알리미가 '
+    + '<b>보안문자(캡차)</b>로 보호하고 있어 자동으로 가져올 수 없어, 학교알리미에서 직접 확인하셔야 합니다.</p>'
+    + '<div class="acts"><a class="btn btn-primary btn-sm" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">학교알리미에서 열기 ↗</a></div>'
+    + '<p class="meta">화면이 열리면 “학업성취사항 → 교과별 학업성취 사항”을 선택하고 보안문자를 입력하면 학년·학기·과목별 성적을 볼 수 있어요. (중·고등학교만 공시)</p>'
+    + '</div>';
+}
 
 /* 이름검색 결과의 홈페이지: 클릭 시에만 해석(검색 시 N번 호출 방지).
    팝업차단 회피 위해 클릭 제스처 안에서 빈 탭을 먼저 연다(handle 필요 → noopener 금지,

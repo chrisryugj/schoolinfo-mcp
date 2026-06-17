@@ -34,6 +34,7 @@ import {
   formatAdmission,
   listAdmissionUniversities,
 } from "./admission.js";
+import { achievementGuide } from "./achievement.js";
 
 const KINDS = Object.keys(SCHOOL_KIND) as [SchoolKindName, ...SchoolKindName[]];
 const ALLOWED_EXT = new Set([".hwp", ".hwpx", ".hwpml", ".pdf", ".xlsx", ".xls", ".docx"]);
@@ -136,6 +137,7 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         "조회 가능한 공시정보 항목:\n\n" +
           lines.join("\n") +
           "\n\n※ 수행평가 주제·평가기준(교과별 교수·학습 및 평가계획)은 OpenAPI에 없으며, get_evaluation_plan을 사용하세요." +
+          "\n※ 교과별 학업성취 사항(과목별 평균·성취도 A~E)도 OpenAPI에 없고 캡차로 보호돼 자동조회가 불가합니다. get_subject_achievement로 확인 링크를 받으세요(중·고)." +
           "\n※ 학사일정(시험·방학 등)도 공시에 없으며, get_school_schedule을 사용하세요."
       );
     }
@@ -385,6 +387,31 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         }
         const majors = searchAdmissionMajors(uni, major);
         return ok(formatAdmission(uni, majors, major));
+      } catch (e: any) {
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 4.11 교과별 학업성취 사항 (캡차 보호 → 딥링크 안내) ──
+  // 과목별 평균·성취도(A~E) 분포. OpenAPI에 없고, 학교별 공시 웹은 캡차로 보호돼
+  // 자동조회가 불가능하다(학교알리미가 의도적으로 봇 수집 차단). 직접 확인 딥링크를 안내.
+  server.tool(
+    "get_subject_achievement",
+    "학교의 '교과별 학업성취 사항'(과목별 학기 평균점수·성취도 A~E 분포비율)을 확인하는 방법을 안내합니다. 이 항목은 학교알리미가 보안문자(캡차)로 보호해 자동 조회가 불가능하므로, 해당 학교 공시 화면으로 바로 가는 링크를 제공합니다. (중·고등학교만 공시)",
+    {
+      sido: z.string(),
+      sgg: z.string(),
+      kind: z.enum(KINDS),
+      name: z.string().describe("학교명"),
+    },
+    async ({ sido, sgg, kind, name }) => {
+      try {
+        const client = getClient();
+        const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
+        if (many) return ok(`여러 학교가 검색됨. 정확한 이름을 지정하세요:\n` + many.map((s) => `- ${s.name}`).join("\n"));
+        if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
+        return ok(achievementGuide(school));
       } catch (e: any) {
         return err(`오류: ${e.message}`);
       }

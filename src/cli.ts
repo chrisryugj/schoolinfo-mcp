@@ -15,6 +15,7 @@ import { SchoolInfoClient, School } from "./client.js";
 import { SCHOOL_KIND, SchoolKindName, findApiType, API_TYPES, resolveSido } from "./codes.js";
 import { formatSchool, formatDisclosure, getParentDigest, getAreaReport, formatAreaReport } from "./index.js";
 import { evaluationGuide, parseEvaluationDocument, autoFetchEvaluation, listEvaluationDocs } from "./evaluation.js";
+import { achievementGuide } from "./achievement.js";
 import {
   findNeisSchool, fetchSchedule, hasNeisKey, currentAcademicYear, formatSchedule,
   fetchMeal, formatMeal, parseAvoid, todayKstYmd,
@@ -133,6 +134,14 @@ async function main() {
         console.error(`⚠️ 자동 조회 실패: ${e.message}\n`);
         console.log(evaluationGuide(school, year));
       }
+      break;
+    }
+    case "achievement": {
+      // 교과별 학업성취 사항 — 캡차 보호로 자동조회 불가, 학교알리미 딥링크 안내
+      const [sido, sgg, kind, name] = args;
+      requireKind(kind); requireName(name);
+      const school = await pickSchool(client(), sido, sgg, kind as SchoolKindName, name);
+      console.log(achievementGuide(school));
       break;
     }
     case "parse": {
@@ -317,6 +326,7 @@ function printHelp() {
   schoolinfo digest <시도> <시군구> <학교급> <학교명>   학부모 핵심 공시 모아보기
   schoolinfo get    <시도> <시군구> <학교급> <학교명> <항목> [연도]   특정 공시
   schoolinfo eval   <시도> <시군구> <학교급> <학교명>   평가계획(수행평가) 찾기 안내
+  schoolinfo achievement <시도> <시군구> <학교급> <학교명>   교과별 학업성취(과목별 평균·성취도) 확인 링크 안내(중·고)
   schoolinfo parse  <hwp파일경로>                       받은 평가계획 → 마크다운
   schoolinfo check  <시도> <시군구> <학교급> <학교명>   변경 감지 + 알림(스케줄러용)
   schoolinfo schedule <시도> <시군구> <학교급> <학교명> [연도]   학사일정(시험·방학 등, NEIS)

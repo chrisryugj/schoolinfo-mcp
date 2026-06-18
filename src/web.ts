@@ -230,7 +230,8 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .out th:last-child,.out td:last-child{border-right:0;}
   /* 넓은 표(3열+ · 수행평가): 가로 스크롤 + 첫 열 고정 + 끝 페이드 + 힌트 */
   .tablewrap{position:relative; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:12px 0; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);}
-  .tablewrap::after{content:""; position:absolute; top:0; right:0; bottom:0; width:22px; pointer-events:none; background:linear-gradient(90deg,transparent,rgba(32,29,26,.10)); border-radius:0 var(--radius-sm) var(--radius-sm) 0;}
+  .tablewrap::after{content:""; position:absolute; top:0; right:0; bottom:0; width:22px; pointer-events:none; background:linear-gradient(90deg,transparent,rgba(32,29,26,.10)); border-radius:0 var(--radius-sm) var(--radius-sm) 0; opacity:1; transition:opacity .2s;}
+  .tablewrap[data-fade="off"]::after{opacity:0;}
   .out table.wide{min-width:max-content;}
   .out table.wide th,.out table.wide td{white-space:nowrap;}
   .out table.wide th:first-child,.out table.wide td:first-child{position:sticky; left:0; z-index:1;}
@@ -539,8 +540,11 @@ const RECENT_KEY = "schoolinfo:recent";
 function h(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function safeUrl(u){ return /^https?:\\/\\//i.test(String(u||"")) ? u : ""; }
 function safeMd(md){
+  // 날짜 범위(예: 6/24~6/26)의 ~가 GFM 취소선 마커로 오인돼 구간이 통째로 취소선 처리되는 문제 차단.
+  // 이 앱은 의도적 취소선을 쓰지 않으므로 ~를 일괄 escape(\~)해 리터럴로 렌더한다(MCP/CLI는 marked 미사용이라 무관).
+  const src = String(md==null?"":md).replace(/~/g, '\\\\~');
   // marked 로드 실패 시에도 최소 가독성 유지(줄바꿈만 <br>). 이스케이프/정제는 그대로.
-  const html = (window.marked ? marked.parse(md) : h(md).replace(/\\n/g,'<br>'));
+  const html = (window.marked ? marked.parse(src) : h(md).replace(/\\n/g,'<br>'));
   return (window.DOMPurify ? DOMPurify.sanitize(html, {ADD_TAGS:['details','summary']}) : h(md));
 }
 /* structured 평가표는 이미 HTML(<table>) — marked 없이 정제만. data-* 속성은 DOMPurify 기본 허용. */
@@ -1357,6 +1361,12 @@ try{
   const io = new IntersectionObserver((es)=>{ es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:0.12});
   document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 }catch(_){ document.querySelectorAll('.reveal').forEach(el => el.classList.add('in')); }
+
+/* ── 표 우측 페이드: 스크롤 끝이거나 스크롤이 필요 없으면 숨김(더 볼 게 없는데 affordance가 남는 문제) ── */
+function updTableFade(w){ if(!w) return; w.dataset.fade = (w.scrollWidth - w.clientWidth - w.scrollLeft <= 1) ? 'off' : 'on'; }
+document.addEventListener('scroll', (e)=>{ const w = e.target && e.target.closest && e.target.closest('.tablewrap'); if(w) updTableFade(w); }, true);
+addEventListener('resize', ()=>document.querySelectorAll('.tablewrap').forEach(updTableFade));
+try{ new MutationObserver(()=>document.querySelectorAll('.tablewrap').forEach(updTableFade)).observe(document.body, {childList:true, subtree:true}); }catch(_){}
 </script>
 </body>
 </html>`;

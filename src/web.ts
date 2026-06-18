@@ -240,6 +240,19 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .out table.wide tr.mine td{background:var(--hl-bg); color:var(--accent-ink);}
   .out table.wide tr.mine td:first-child{background:rgba(181,86,42,.2);}
   .scroll-hint{display:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
+  /* 학생수 비교 가로 막대 (표 위 한눈 요약) */
+  .barlist{margin:14px 0 6px; display:flex; flex-direction:column; gap:9px;}
+  .barrow{display:grid; grid-template-columns:minmax(78px,32%) 1fr auto; align-items:center; gap:10px; font-size:13px;}
+  .barrow .bl{color:var(--ink-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}
+  .barrow .bt{height:12px; border-radius:999px; background:var(--surface-2); overflow:hidden;}
+  .barrow .bf{display:block; height:100%; min-width:3px; border-radius:999px; background:var(--accent); opacity:.42; transition:width .6s cubic-bezier(.2,.8,.2,1);}
+  .barrow .bv{font-variant-numeric:tabular-nums; color:var(--ink); font-weight:600; white-space:nowrap;}
+  .barrow.mine .bl{color:var(--accent-ink); font-weight:700;}
+  .barrow.mine .bf{opacity:1;}
+  /* 수행평가 표: "NN%" 셀에만 깔리는 인라인 비율 게이지 (표 구조 해석 없음 → 어떤 학교 표든 안전) */
+  .out td.hasgauge{position:relative;}
+  .out td.hasgauge .cellgauge{position:absolute; left:0; top:2px; bottom:2px; background:var(--accent-soft); border-right:2px solid var(--accent); border-radius:3px; z-index:0;}
+  .out td.hasgauge .cellgval{position:relative; z-index:1; font-variant-numeric:tabular-nums; font-weight:600; color:var(--accent-ink);}
   /* 2열 항목·값 표(공시 다이제스트 등): 모바일에선 카드형 스택으로 가로스크롤 없이 */
   @media (max-width:560px){
     .out table.kv{display:block; background:transparent; font-size:15px;}
@@ -904,6 +917,20 @@ async function loadEval(ctx, seq, year){
   }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 
+/* 셀 전체가 "NN%"인 칸에만 비율 게이지를 깐다(오탐 방지로 순수 백분율 셀만).
+   표 구조를 해석하지 않으므로 학교마다 다른 평가표에도 안전하고, %가 없으면 아무 일도 안 한다. */
+function gaugePercentCells(root){
+  if (!root) return;
+  root.querySelectorAll('td').forEach(td=>{
+    if (td.classList.contains('hasgauge') || td.children.length) return; // 처리 완료/중첩 셀 제외
+    const m = td.textContent.trim().match(/^(\\d{1,3})\\s*%$/);
+    if (!m) return;
+    const p = Math.min(+m[1], 100);
+    td.classList.add('hasgauge');
+    td.innerHTML = '<span class="cellgauge" style="width:'+p+'%"></span><span class="cellgval">'+h(m[0])+'</span>';
+  });
+}
+
 /* ── 학년/과목 선택 평가표 (통합형 학교) ──
    거대한 전체 문서를 한꺼번에 그리지 않고, 학년 종합표(작음)만 받아 선택한 학년/과목만 렌더.
    과목 칩은 표의 data-subject 행을 토글한다(다시 다운로드/파싱하지 않음). */
@@ -954,6 +981,7 @@ function renderStructured(ctx, d){
         w.parentNode.insertBefore(hint, w.nextSibling);
       } else { t.classList.add('kv'); }
     });
+    gaugePercentCells(dt);
   };
   const draw = () => {
     card.innerHTML = head
@@ -967,7 +995,7 @@ function renderStructured(ctx, d){
     const out = card.querySelector('#stTable');
     out.innerHTML = safeHtml(grades[gi].tableHtml);
     const t = out.querySelector('table');
-    if (t){ t.classList.add('wide'); applyFilter(t); }
+    if (t){ t.classList.add('wide'); applyFilter(t); gaugePercentCells(t); }
     drawDetail();
   };
   card.addEventListener('click', (e) => {
@@ -1143,9 +1171,20 @@ function renderCompare(ctx, d){
     return '<tr'+(mine?' class="mine"':'')+'>'+cells.join('')+'</tr>';
   }).join('');
   const table = '<table class="wide">'+thead+'<tbody>'+tbody+'</tbody></table>';
+  // 총학생수 가로 막대 — 이미 학생수 순 정렬, 내 학교만 진한 테라코타
+  const maxTotal = Math.max(1, ...schools.map(s=>+s.total||0));
+  const bars = schools.map((s,i)=>{
+    const mine = (s.name||'').replace(/\\s/g,'')===myName && myName;
+    const w = ((+s.total||0)/maxTotal*100).toFixed(1);
+    return '<div class="barrow'+(mine?' mine':'')+'">'
+      + '<span class="bl" title="'+h(s.name)+'">'+(i+1)+'. '+h(s.name)+(mine?' ★':'')+'</span>'
+      + '<span class="bt"><span class="bf" style="width:'+w+'%"></span></span>'
+      + '<span class="bv">'+(s.total==null?'—':(s.total.toLocaleString()+'명'))+'</span></div>';
+  }).join('');
   const card = document.createElement('div'); card.className='card fade';
   card.innerHTML = '<div class="result-head"><h2>'+title+'</h2></div>'
     + '<p class="desc">같은 시군구 '+h(d.kind||ctx.kind||'')+' '+schools.length+'곳을 학생수 순으로 정리했어요. <b>★</b>는 선택한 학교.</p>'
+    + '<div class="barlist">'+bars+'</div>'
     + '<div class="out"><div class="tablewrap">'+table+'</div><div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div></div>';
   $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});

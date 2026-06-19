@@ -44,13 +44,6 @@
 > 인증키 발급도, 회원가입도 필요 없습니다. **링크만 알면 누구나** 바로 쓸 수 있어요.
 > **모바일 최적화**(화면 안 잘리고, 단어 단위 줄바꿈, 큰 글씨 위계의 에디토리얼 디자인) — 카톡으로 링크 공유하면 다른 학부모도 그대로 사용.
 
-<p align="center">
-  <img src="shots/home-mobile.png" width="260" alt="학교 이름 하나로 검색하는 홈 화면"/>
-  &nbsp;&nbsp;
-  <img src="shots/eval-mobile.png" width="260" alt="수행평가 계획을 학년·과목 칩으로 골라 표로"/>
-</p>
-<p align="center"><sub>학교 이름만 입력하면(왼쪽), 첨부 hwp 속 수행평가가 학년·과목별 표로 펼쳐집니다(오른쪽). 고른 학년·과목만 그려 모바일에서도 가볍게.</sub></p>
-
 ---
 
 ## 🤖 AI에게 물어보기 (Claude Desktop / Cursor)

@@ -69,6 +69,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Apple SD Gothic Neo",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --radius:14px; --radius-sm:10px;
+    --maxw:1040px;
   }
   *{box-sizing:border-box; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;}
   html,body{overflow-x:hidden;}
@@ -90,16 +91,16 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     border-bottom:1px solid var(--hair);
     padding:calc(env(safe-area-inset-top) + 12px) 22px 12px;
   }
-  .nav-in{max-width:680px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .nav-in{max-width:var(--maxw); margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px;}
   .brand{display:flex; align-items:center; gap:9px; font-weight:700; font-size:15px; letter-spacing:-0.02em;}
   .brand .dot{width:6px; height:6px; border-radius:50%; background:var(--accent);}
   .nav-link{font-size:12.5px; color:var(--ink-dim); transition:.2s; white-space:nowrap; border-bottom:1px solid transparent; padding-bottom:1px;}
   .nav-link:hover{color:var(--ink); border-color:var(--ink-dimmer);}
 
-  main{max-width:680px; margin:0 auto; padding:0 22px;}
+  main{max-width:var(--maxw); margin:0 auto; padding:0 22px;}
 
   /* ===== Mode tabs (우리 학교 / 대학 진학) ===== */
-  .modetab{display:flex; gap:9px; max-width:680px; margin:0 auto; padding:22px 22px 0;}
+  .modetab{display:flex; gap:9px; max-width:var(--maxw); margin:0 auto; padding:22px 22px 0;}
   .mt-btn{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
     padding:13px 12px; border:1px solid var(--hair-strong); border-radius:12px; background:var(--surface);
     font-family:inherit; font-weight:700; font-size:14.5px; color:var(--ink-dim); cursor:pointer;
@@ -385,7 +386,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .reveal.in{opacity:1; transform:none;}
 
   /* ===== Footer ===== */
-  footer{max-width:680px; margin:0 auto; padding:52px 22px calc(env(safe-area-inset-bottom) + 44px); text-align:center; border-top:1px solid var(--hair); margin-top:44px;}
+  footer{max-width:var(--maxw); margin:0 auto; padding:52px 22px calc(env(safe-area-inset-bottom) + 44px); text-align:center; border-top:1px solid var(--hair); margin-top:44px;}
   footer .f-line{font-family:var(--mono); font-size:11.5px; letter-spacing:.03em; color:var(--mut); line-height:1.9;}
   footer .f-actions{margin-top:13px; display:flex; justify-content:center;}
   .copy-mcp{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:12px; letter-spacing:.02em; color:var(--ink-dim);

@@ -39,20 +39,20 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="theme-color" content="#fdfcfa"/>
-<title>우리 학교 알리미 — 매일 급식·수행평가·학사일정을 학교 이름 하나로</title>
-<meta name="description" content="전국 초·중·고의 매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day까지. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<title>우리 학교 알리미 — 학교 비교·수행평가, 흩어진 공시를 한 표로</title>
+<meta name="description" content="같은 동네 학교를 한 표로 비교하고, hwp 첨부에 묻힌 수행평가 계획을 표로 풀어 드려요. 전국 초·중·고 공시를 학교 이름만으로. 설치·가입 없이."/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="우리 학교 알리미"/>
 <meta property="og:locale" content="ko_KR"/>
 <meta property="og:url" content="https://school-mcp.fly.dev/"/>
-<meta property="og:title" content="우리 학교 알리미 — 학교 이름 하나로 매일 급식·수행평가·학사일정"/>
-<meta property="og:description" content="매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<meta property="og:title" content="우리 학교 알리미 — 학교 비교·수행평가, 흩어진 공시를 한 표로"/>
+<meta property="og:description" content="같은 동네 학교를 한 표로 비교하고, hwp 첨부에 묻힌 수행평가 계획을 표로 풀어 드려요. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
 <meta property="og:image" content="https://school-mcp.fly.dev/og.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="우리 학교 알리미"/>
-<meta name="twitter:description" content="학교 이름 하나로 매일 급식·수행평가·학사일정을 한 번에."/>
+<meta name="twitter:description" content="같은 동네 학교를 한 표로 비교하고, 수행평가는 표로. 학교 이름 하나로."/>
 <meta name="twitter:image" content="https://school-mcp.fly.dev/og.png"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
@@ -100,19 +100,24 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   main{max-width:var(--maxw); margin:0 auto; padding:0 22px;}
 
   /* ===== Mode tabs (우리 학교 / 대학 진학) ===== */
-  .modetab{display:flex; gap:9px; max-width:var(--maxw); margin:0 auto; padding:22px 22px 0;}
-  .mt-btn{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    padding:13px 12px; border:1px solid var(--hair-strong); border-radius:12px; background:var(--surface);
-    font-family:inherit; font-weight:700; font-size:14.5px; color:var(--ink-dim); cursor:pointer;
-    transition:background .2s, color .2s, border-color .2s; -webkit-tap-highlight-color:transparent;}
-  .mt-btn[aria-selected="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .mt-btn:not([aria-selected="true"]):hover{background:var(--bg2); color:var(--ink);}
+  .modetab{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; max-width:var(--maxw); margin:0 auto; padding:22px 22px 0;}
+  .mt-btn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:76px;
+    padding:14px 10px; border:1px solid var(--hair-strong); border-radius:10px; background:var(--surface);
+    font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transition:background .2s, border-color .2s, transform .1s;}
+  .mt-btn:active{transform:scale(.97);}
+  .mt-ic{font-size:21px; line-height:1;}
+  .mt-lb{font-size:13.5px; font-weight:700; color:var(--ink-dim); line-height:1.25; text-align:center; word-break:keep-all;}
+  .mt-btn[aria-selected="true"]{background:var(--accent); border-color:var(--accent);}
+  .mt-btn[aria-selected="true"] .mt-lb{color:#fff;}
+  .mt-btn:not([aria-selected="true"]):hover{background:var(--bg2);}
+  .mt-btn:not([aria-selected="true"]):hover .mt-lb{color:var(--ink);}
 
   /* ===== Hero ===== */
   .hero{padding:72px 0 36px;}
   .eyebrow{
     display:inline-flex; align-items:center; gap:9px; margin-bottom:26px;
-    font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--mut); font-weight:500;
+    font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--mut); font-weight:500;
   }
   .eyebrow .pulse{width:5px; height:5px; border-radius:50%; background:var(--accent);}
   h1.display{
@@ -142,11 +147,11 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== Form ===== */
   .row{display:flex; gap:10px; flex-wrap:wrap;}
   .row>*{flex:1; min-width:130px;}
-  label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin:0 0 7px 2px;}
+  label{display:block; font-size:12px; letter-spacing:.01em; color:var(--ink-dim); font-weight:600; margin:0 0 7px 2px;}
   select,input{width:100%; padding:13px 14px; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);
     font-size:17px; background:var(--bg2); color:var(--ink); font-family:inherit; appearance:none; -webkit-appearance:none; transition:border-color .15s, box-shadow .15s;}
   select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a817a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:34px;}
-  input::placeholder{color:var(--ink-dimmer);}
+  input::placeholder{color:var(--mut);}
   input:focus,select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
   .field-search{position:relative;}
   .field-search input{padding-left:44px;}
@@ -154,7 +159,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Buttons ===== */
   .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none;
-    border:1px solid transparent; border-radius:999px; padding:12px 20px; font-size:15px; font-weight:600;
+    border:1px solid transparent; border-radius:8px; padding:12px 20px; font-size:15px; font-weight:600;
     cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent; white-space:nowrap;
     transition:transform .08s, background .2s, border-color .2s, opacity .2s;}
   .btn:active{transform:scale(.97);}
@@ -170,14 +175,14 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Recent chips ===== */
   .recent{margin-bottom:20px;}
-  .recent .head{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut);
+  .recent .head{font-family:var(--mono); font-size:11px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut);
     margin:0 2px 10px; display:flex; justify-content:space-between; align-items:center;}
   .recent .head a{color:var(--ink-dim); cursor:pointer; text-transform:none; letter-spacing:0; font-family:var(--font); font-size:12px;}
   .recent .head a:hover{color:var(--ink);}
   .recent .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 2px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .recent .chips::-webkit-scrollbar{display:none;}
   .recent .chip{display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; max-width:80vw; white-space:nowrap; overflow:hidden;
-    background:var(--surface); border:1px solid var(--hair-strong); border-radius:999px;
+    background:var(--surface); border:1px solid var(--hair-strong); border-radius:8px;
     padding:8px 8px 8px 15px; font-size:14px; color:var(--ink); cursor:pointer; transition:background .2s, transform .08s;}
   .recent .chip:hover{background:var(--bg2);}
   .recent .chip:active{transform:scale(.97);}
@@ -190,10 +195,19 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .school:first-child{padding-top:2px;}
   .school:last-child{border-bottom:0; padding-bottom:2px;}
   .school h3{margin:0 0 5px; font-size:19px; font-weight:700; letter-spacing:-0.02em;}
-  .school .tag{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:.04em; text-transform:uppercase;}
+  .school .tag{display:inline-block; font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:0;}
   .school .meta{font-size:14px; color:var(--ink-dim); margin:0 0 13px;}
   .acts{display:flex; gap:8px; flex-wrap:wrap;}
-  .count{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin:0 2px 6px;}
+  .count{font-size:12.5px; letter-spacing:.01em; color:var(--ink-dim); margin:0 2px 7px; font-weight:600;}
+  /* 일상정보 접이식 — 다른 pill 버튼과 톤 통일, 기본 ▶ marker 제거 */
+  .more-daily{margin:10px 0 2px;}
+  .more-daily>summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; font-size:13px; padding:8px 14px; border-radius:8px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); -webkit-tap-highlight-color:transparent; transition:background .15s,border-color .15s,color .15s;}
+  .more-daily>summary::-webkit-details-marker{display:none;}
+  .more-daily>summary::after{content:'▾'; font-size:11px; color:var(--mut); transition:transform .2s;}
+  .more-daily[open]>summary{background:var(--bg2); color:var(--ink); border-color:var(--accent-line);}
+  .more-daily[open]>summary::after{transform:rotate(180deg);}
+  .more-daily:hover>summary{color:var(--ink); background:var(--bg2);}
+  .more-daily .acts{margin-top:10px;}
 
   /* ===== Output (markdown) ===== */
   .result-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
@@ -227,7 +241,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .out table{border-collapse:collapse; width:100%; font-size:14px; background:var(--surface);}
   .out th,.out td{border-bottom:1px solid var(--hair); border-right:1px solid var(--hair); padding:10px 13px; text-align:left; vertical-align:top;}
   .out tr:last-child td{border-bottom:0;}
-  .out th{background:var(--bg2); font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim); font-weight:600;}
+  .out th{background:var(--bg2); font-size:11.5px; letter-spacing:.01em; color:var(--ink-dim); font-weight:600;}
   .out th:last-child,.out td:last-child{border-right:0;}
   /* 넓은 표(3열+ · 수행평가): 가로 스크롤 + 첫 열 고정 + 끝 페이드 + 힌트 */
   .tablewrap{position:relative; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:12px 0; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);}
@@ -241,7 +255,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* 비교표: 선택한 내 학교 행 강조 (sticky 첫 열 배경도 함께) */
   .out table.wide tr.mine td{background:var(--hl-bg); color:var(--accent-ink);}
   .out table.wide tr.mine td:first-child{background:rgba(181,86,42,.2);}
-  .scroll-hint{display:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
+  .scroll-hint{display:none; font-size:12px; letter-spacing:.01em; color:var(--ink-dim); margin:-6px 2px 14px; text-align:center;}
   /* 학생수 비교 가로 막대 (표 위 한눈 요약) */
   .barlist{margin:14px 0 6px; display:flex; flex-direction:column; gap:9px;}
   .barrow{display:grid; grid-template-columns:minmax(78px,32%) 1fr auto; align-items:center; gap:10px; font-size:13px;}
@@ -301,14 +315,14 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Disclosure section (대폭 축소) ===== */
   .section{padding:48px 0 8px; border-top:1px solid var(--hair); margin-top:40px;}
-  .chapter-label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); margin-bottom:14px;}
+  .chapter-label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--mut); margin-bottom:14px;}
   .section h2{margin:0 0 14px; font-size:clamp(24px,5vw,34px); line-height:1.12; font-weight:700; letter-spacing:-0.03em; color:var(--ink);}
   .section .lead{margin:0 0 28px; color:var(--ink-dim); font-size:15.5px; line-height:1.65; max-width:520px;}
 
   /* 핵심 두 줄 요약 (수행평가 / 급식) */
   .feat{padding:18px 0; border-top:1px solid var(--hair);}
   .feat:first-of-type{border-top:0;}
-  .feat .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:7px;}
+  .feat .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.03em; text-transform:uppercase; color:var(--accent); margin-bottom:7px;}
   .feat h3{margin:0 0 6px; font-size:18px; font-weight:700; letter-spacing:-0.02em;}
   .feat p{margin:0; color:var(--ink-dim); font-size:14.5px; line-height:1.65;}
   .feat p b{color:var(--ink);}
@@ -326,8 +340,8 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== 학년/과목 필터 칩 (structured 평가표) ===== */
   .filters{display:flex; flex-direction:column; gap:11px; margin:16px 0 10px;}
   .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center; min-width:0;}
-  .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
-  .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:var(--surface); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
+  .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .fchip{font-size:13px; padding:7px 13px; border-radius:7px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:var(--surface); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
   .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-0.01em;}
   table.sched{width:100%; border-collapse:collapse;}
   table.sched td{padding:8px 4px; border-bottom:1px solid var(--hair); font-size:14px; vertical-align:top; line-height:1.45;}
@@ -350,8 +364,8 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .adm-major .mcampus{font-size:11px; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:6px; padding:1px 6px; margin-left:6px;}
   .adm-loc{font-size:12px; font-weight:500; color:var(--mut);}
   .adm-row{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; margin-top:7px;}
-  .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
-  .subj{font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
+  .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .subj{font-size:12.5px; padding:4px 10px; border-radius:6px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
   .subj.core{background:var(--accent); color:#fff; border-color:var(--accent);}
   .subj-text{font-size:13px; color:var(--ink-dim); line-height:1.5; flex:1; min-width:0;}
   .adm-row.note .subj-text{color:var(--mut); font-size:12.5px;}
@@ -366,7 +380,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .ms-body{padding:0 18px 18px; border-top:1px solid var(--hair);}
   .ms-help{margin:13px 0 12px; font-size:12.5px; color:var(--ink-dim); line-height:1.55;}
   .ms-palette{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:13px;}
-  .ms-chip{font-size:12.5px; padding:6px 12px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s; font-family:inherit; -webkit-tap-highlight-color:transparent;}
+  .ms-chip{font-size:12.5px; padding:6px 12px; border-radius:6px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s; font-family:inherit; -webkit-tap-highlight-color:transparent;}
   .ms-chip:hover{background:var(--bg2); color:var(--ink);}
   .ms-chip[aria-pressed="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
   .ms-add{display:flex; gap:7px;}
@@ -380,6 +394,20 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .gradenav{position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:7px; align-items:center;
     margin:14px 0 4px; padding:9px 0; background:var(--surface); border-bottom:1px solid var(--hair);}
   .fchip.sub[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent); border-color:var(--accent-line);}
+  .subjnav .flabel{color:var(--accent);}
+  /* 교과 아코디언 — 통합형 평가계획을 교과별로 접어 모바일 가독성 확보 */
+  .subj-acc-wrap{margin:16px 0;}
+  .subj-acc{border:1px solid var(--hair-strong); border-radius:8px; background:var(--surface); margin-bottom:8px; overflow:hidden;}
+  .subj-acc>summary{cursor:pointer; list-style:none; padding:13px 16px; font-weight:700; font-size:15px; color:var(--ink); display:flex; align-items:center; justify-content:space-between; -webkit-tap-highlight-color:transparent;}
+  .subj-acc>summary::-webkit-details-marker{display:none;}
+  .subj-acc>summary::after{content:'▾'; color:var(--mut); font-size:12px; transition:transform .2s;}
+  .subj-acc[open]>summary{background:var(--bg2); border-bottom:1px solid var(--hair);}
+  .subj-acc[open]>summary::after{transform:rotate(180deg);}
+  .subj-acc>summary:hover{background:var(--bg2);}
+  .subj-acc .tablewrap{margin:0; border:0; border-radius:0;}
+  td.subjcell{font-weight:700;}
+  td.flash{animation:cellflash 1.2s ease;}
+  @keyframes cellflash{0%,100%{background:transparent;}25%{background:var(--accent-soft);}}
 
   /* ===== Reveal on scroll ===== */
   .reveal{opacity:0; transform:translateY(18px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);}
@@ -390,7 +418,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   footer .f-line{font-family:var(--mono); font-size:11.5px; letter-spacing:.03em; color:var(--mut); line-height:1.9;}
   footer .f-actions{margin-top:13px; display:flex; justify-content:center;}
   .copy-mcp{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:12px; letter-spacing:.02em; color:var(--ink-dim);
-    background:var(--surface); border:1px solid var(--hair-strong); border-radius:999px; padding:7px 14px; cursor:pointer; transition:.2s; -webkit-tap-highlight-color:transparent;}
+    background:var(--surface); border:1px solid var(--hair-strong); border-radius:8px; padding:7px 14px; cursor:pointer; transition:.2s; -webkit-tap-highlight-color:transparent;}
   .copy-mcp:hover{color:var(--accent); background:var(--accent-soft); border-color:var(--accent-line);}
   .copy-mcp .cm-ic{opacity:.7;}
   .copy-mcp.copied{color:var(--safe); border-color:rgba(63,122,72,.4); background:rgba(63,122,72,.08);}
@@ -419,15 +447,32 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 </div></nav>
 <main>
   <div class="modetab" role="tablist" aria-label="보기 전환">
-    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true">🏫 우리 학교</button>
-    <button id="mvUni" class="mt-btn" role="tab" aria-selected="false">🎓 대학 진학</button>
+    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true"><span class="mt-ic">📋</span><span class="mt-lb">수행평가·내신</span></button>
+    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="false"><span class="mt-ic">📊</span><span class="mt-lb">학교 비교</span></button>
+    <button id="mvUni" class="mt-btn" role="tab" aria-selected="false"><span class="mt-ic">🎓</span><span class="mt-lb">대학 진학</span></button>
   </div>
+
+  <div id="viewCompare" class="hidden">
+  <section class="hero">
+    <span class="eyebrow"><span class="pulse"></span>같은 동네 학교 한눈에 비교</span>
+    <h1 class="display">우리 동네 학교를,<br/><span class="accent">한 표로.</span></h1>
+    <p class="hero-sub">지역과 학교급만 고르면 <b>학생수·학급당 인원·교사 1인당</b>까지 같은 동네 학교를 한 표로 견줘 드립니다. 학교를 고르거나 옮길 때, 계정 없이 바로.</p>
+  </section>
+  <section class="surface">
+    <div class="row">
+      <div><label>시도</label><select id="csido"><option value="">선택</option>${sidoOpts}</select></div>
+      <div><label>시군구</label><select id="csgg"><option value="">시도 먼저</option></select></div>
+      <div><label>학교급</label><select id="ckind">${kindOpts}</select></div>
+    </div>
+    <button id="findCompare" class="btn btn-primary full" style="margin-top:14px">학교 비교표 보기</button>
+  </section>
+  </div><!-- /viewCompare -->
 
   <div id="viewSchool">
   <section class="hero">
-    <span class="eyebrow"><span class="pulse"></span>전국 초·중·고 공시 · 급식 · 수행평가</span>
-    <h1 class="display">오늘 급식부터 수행평가까지,<br/><span class="accent">학교 이름 하나로.</span></h1>
-    <p class="hero-sub"><b>급식</b>은 알레르기까지 걸러서 보여주고, <b>수행평가</b> hwp는 표로 바꿔 드립니다. <b>시험 <span class="nb">D-day</span></b>와 이번주 일정도 학교 이름만 넣으면 됩니다.</p>
+    <span class="eyebrow"><span class="pulse"></span>학교 이름으로 · 수행평가·내신·공시</span>
+    <h1 class="display">내신 챙길 때,<br/><span class="accent">학교 이름 하나로.</span></h1>
+    <p class="hero-sub">hwp 첨부에 묻힌 <b>수행평가 계획</b>을 표로 풀어 드립니다. 학생수·동아리 같은 <b>공시</b>와 <b>시험 <span class="nb">D-day</span></b>도 학교 이름만 넣으면 됩니다.</p>
   </section>
 
   <section class="surface">
@@ -458,19 +503,15 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     </div>
   </section>
 
-  <section id="recent" class="recent hidden"></section>
-  <section id="results"></section>
-  <section id="output"></section>
-
   <section class="section">
     <span class="chapter-label">무엇을 알 수 있나요</span>
-    <h2>학교 이름 하나면<br/>이만큼 나옵니다.</h2>
-    <p class="lead">학교알리미 공시 35종, 첨부파일에 묻혀 있던 수행평가 계획, 그리고 NEIS의 매일 급식과 학사일정까지 한자리에 모았어요.</p>
+    <h2>학교 이름 하나면<br/>이렇게 많이 볼 수 있어요.</h2>
+    <p class="lead">학교알리미 공시 35종, 첨부파일에 묻혀 있던 수행평가 계획, 매일 급식과 학사일정까지 한곳에 모아 뒀어요.</p>
 
     <div class="feat reveal">
       <div class="k">학부모가 제일 많이 찾는 것</div>
       <h3>수행평가 계획</h3>
-      <p>아이가 무엇으로 평가받는지 — <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있어 열어보기 번거로운 이 자료를, 자동으로 받아 표로 정리해 드려요. 원본 파일도 그대로 내려받을 수 있고요.</p>
+      <p>아이가 무엇으로 평가받는지 — <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있어 열어보기 번거롭죠. 그걸 자동으로 받아 표로 정리해 드려요. 원본 파일도 그대로 내려받을 수 있고요.</p>
     </div>
     <div class="feat reveal">
       <div class="k">매일 들여다보게 되는 것</div>
@@ -489,7 +530,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <section class="hero">
     <span class="eyebrow"><span class="pulse"></span>전국 49개 대학 · 전공별 권장과목</span>
     <h1 class="display">가고 싶은 대학이<br/><span class="accent">권하는 과목.</span></h1>
-    <p class="hero-sub">목표한 <b>대학·학과</b>가 고등학교 때 어떤 선택과목을 들어 두길 바라는지 모았어요. 수도권·영남·중부·호남 <b>49개 대학</b>의 전공별 권장·반영 과목입니다.</p>
+    <p class="hero-sub">목표한 <b>대학·학과</b>가 고등학교 때 어떤 과목을 들으면 좋다고 하는지 모았어요. 수도권·영남·중부·호남 <b>49개 대학</b>의 전공별 권장·반영 과목입니다.</p>
   </section>
 
   <details class="surface mysubj" id="mySubj">
@@ -514,6 +555,11 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     <div id="admOut"></div>
   </section>
   </div><!-- /viewUni -->
+
+  <!-- 출력 영역: 모든 뷰 공용 (viewUni는 자체 #admOut 사용) -->
+  <section id="recent" class="recent hidden"></section>
+  <section id="results"></section>
+  <section id="output"></section>
 </main>
 
 <footer>
@@ -565,24 +611,66 @@ function setMode(mode){
 $('tabName').onclick = () => setMode('name');
 $('tabRegion').onclick = () => setMode('region');
 
-/* ── 최상위 모드: 우리 학교 / 대학 진학 ── */
+/* ── API 응답 캐시 ── 같은 조회(같은 URL)는 다시 부르지 않고 즉시 보여준다.
+   세션 메모리라 새로고침 전까지 유지. 에러 응답은 캐시하지 않아 재시도 가능. */
+const _apiCache = new Map();
+async function cachedJson(url){
+  if (_apiCache.has(url)) return _apiCache.get(url);
+  const r = await fetch(url);
+  const d = await r.json();
+  if (d && !d.error) _apiCache.set(url, d);
+  return d;
+}
+
+/* ── 최상위 모드: 학교 비교 / 수행평가·내신 / 대학 진학 ──
+   탭별 결과(#results·#output)를 저장해 두고, 다른 탭 갔다 와도 그대로 복원한다.
+   클릭 핸들러가 document 위임이라 innerHTML 복원만으로 버튼이 그대로 동작. */
+let _curView = null;
+const _viewOut = {};
 function setView(v){
-  const sch = v !== 'uni';
-  $('mvSchool').setAttribute('aria-selected', String(sch));
-  $('mvUni').setAttribute('aria-selected', String(!sch));
-  $('viewSchool').classList.toggle('hidden', !sch);
-  $('viewUni').classList.toggle('hidden', sch);
-  try{ history.replaceState(null, '', sch ? location.pathname : '#uni'); }catch(_){}
+  const views = {compare:'viewCompare', school:'viewSchool', uni:'viewUni'};
+  const tabs  = {compare:'mvCompare',   school:'mvSchool',   uni:'mvUni'};
+  if (!views[v]) v = 'school';
+  // 떠나는 뷰의 출력 보존 (uni는 자체 #admOut 사용 → 제외)
+  if (_curView && _curView !== 'uni') _viewOut[_curView] = { r: $('results').innerHTML, o: $('output').innerHTML };
+  for (const k in views){
+    $(views[k]).classList.toggle('hidden', k !== v);
+    $(tabs[k]).setAttribute('aria-selected', String(k === v));
+  }
+  _curView = v;
+  // 들어가는 뷰의 출력 복원 (없으면 빈 화면)
+  if (v !== 'uni'){
+    const s = _viewOut[v] || { r:'', o:'' };
+    $('results').innerHTML = s.r; $('output').innerHTML = s.o;
+  }
+  // 최근 본 학교는 수행평가·내신(school) 맥락에서만 노출
+  if (v === 'school') renderRecent(); else { $('recent').classList.add('hidden'); $('recent').innerHTML=''; }
+  const hash = v === 'school' ? location.pathname : '#'+v;
+  try{ history.replaceState(null, '', hash); }catch(_){}
   window.scrollTo({top:0});
 }
+$('mvCompare').onclick = () => setView('compare');
 $('mvSchool').onclick = () => setView('school');
 $('mvUni').onclick = () => setView('uni');
-if (location.hash.toLowerCase().indexOf('uni') >= 0) setView('uni');
+const _vh = location.hash.toLowerCase();
+setView(_vh.indexOf('uni')>=0 ? 'uni' : (_vh.indexOf('compare')>=0 ? 'compare' : 'school'));
 
 /* ── 지역 검색: 시군구 채우기 ── */
 $('sido').onchange = () => {
   const sgg = REGIONS[$('sido').value] || [];
   $('sgg').innerHTML = '<option value="">전체</option>' + sgg.map(s => '<option>'+h(s)+'</option>').join('');
+};
+
+/* ── 학교 비교(viewCompare): 지역+학교급만으로 비교표 (학교를 먼저 안 찾아도 됨) ── */
+$('csido').onchange = () => {
+  const sgg = REGIONS[$('csido').value] || [];
+  $('csgg').innerHTML = '<option value="">선택</option>' + sgg.map(s => '<option>'+h(s)+'</option>').join('');
+};
+$('findCompare').onclick = () => {
+  const sido=$('csido').value, sgg=$('csgg').value, kind=$('ckind').value;
+  if (!sido || !sgg){ $('output').innerHTML = info('시도와 시군구를 선택하세요.'); return; }
+  // 학생수 구조화 비교표(정렬·학년열·가로막대) = 비교 첫인상. name 없으면 ★ 하이라이트만 비고 표는 정상.
+  loadCompare({sido, sgg, kind, name:''});
 };
 
 /* ── 학교 결과 카드 (검색 결과/최근학교 공용) ── */
@@ -598,20 +686,24 @@ function schoolCard(ctx, opts){
     : (opts.resolveHome && ctx.kind ? '<button class="btn btn-line btn-sm" data-act="home" '+d+'>🌐 홈페이지</button>' : '');
   // 학교급(kind)을 모르면 공시/평가계획 조회가 불가하므로 버튼 대신 안내 (지역검색 유도)
   // 두 묶음으로 — 그 학교 하나만 보는 것 / 동네 학교끼리 견줘 보는 것.
+  // 핵심(수행평가·내신·공시)은 전면. 일상정보(급식·학사일정·이번주)는 incumbent와 겹쳐 접이식으로 격하.
   const ownBtns = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
     + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
     // 학업성취(교과별 성적)는 중·고만 공시. 캡차로 자동조회 불가 → 학교알리미 딥링크 안내.
     + ((ctx.kind && (ctx.kind.indexOf('중학교')>=0 || ctx.kind.indexOf('고등학교')>=0))
         ? '<button class="btn btn-soft btn-sm" data-act="achievement" '+d+'>📈 학업성취도</button>' : '')
     + hpBtn;
+  const dailyDetails = '<details class="more-daily"><summary>🍱 급식·학사일정·이번주</summary>'
+    + '<div class="acts" style="margin-top:8px">'
+    + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
+    + '</div></details>';
   const nearBtns = '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
     + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
     + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>';
   const acts = ctx.kind
-    ? '<div class="count">이 학교 보기</div><div class="acts">' + ownBtns + '</div>'
+    ? '<div class="count">이 학교 보기</div><div class="acts">' + ownBtns + '</div>' + dailyDetails
       + '<div class="count" style="margin-top:13px">동네 학교끼리 비교</div><div class="acts">' + nearBtns + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
@@ -625,10 +717,10 @@ function ctxOf(el){ return {sido:el.getAttribute('data-sido'), sgg:el.getAttribu
 /* ── 이름으로 검색 ── */
 async function findByName(){
   const word = $('qname').value.trim();
-  if (word.length < 2){ $('results').innerHTML = info('학교 이름을 2글자 이상 입력하세요.'); return; }
+  if (word.length < 2){ $('results').innerHTML = info('학교 이름을 2글자 이상 입력해 주세요.'); return; }
   $('results').innerHTML = spinner('전국에서 학교를 찾는 중…'); $('output').innerHTML='';
   try{
-    const r = await fetch('/api/searchName?'+new URLSearchParams({word}));
+    const r = { json: () => cachedJson('/api/searchName?'+new URLSearchParams({word})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     const list = d.schools||[];
@@ -638,6 +730,7 @@ async function findByName(){
       {tag:s.kind, resolveHome:true, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
+    $('results').scrollIntoView({behavior:'smooth', block:'start'});
   }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findName').onclick = findByName;
@@ -649,7 +742,7 @@ async function findByRegion(){
   if (!sido || !sgg){ $('results').innerHTML = info('시도와 시군구를 선택하세요.'); return; }
   $('results').innerHTML = spinner('학교를 찾는 중…'); $('output').innerHTML='';
   try{
-    const r = await fetch('/api/search?'+new URLSearchParams({sido,sgg,kind,name}));
+    const r = { json: () => cachedJson('/api/search?'+new URLSearchParams({sido,sgg,kind,name})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     const list = d.schools||[];
@@ -659,6 +752,7 @@ async function findByRegion(){
       {meta:[s.foundation, s.address, (s.tel?'☎ '+s.tel:'')].filter(Boolean).map(h).join(' · '), homepage:s.homepage}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
+    $('results').scrollIntoView({behavior:'smooth', block:'start'});
   }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findRegion').onclick = findByRegion;
@@ -740,7 +834,7 @@ function addMyCustom(){
 /* ── 대학 전공별 권장 이수과목 (학교 검색과 독립) ── */
 (async function initAdmission(){
   try{
-    const r = await fetch('/api/admission'); const d = await r.json();
+    const r = { json: () => cachedJson('/api/admission') }; const d = await r.json();
     const dl = $('admUniList');
     if (dl && d.universities) dl.innerHTML = d.universities.map(u => '<option value="'+h(u.name)+'">').join('');
     if (d.subjects){ admSubjects = d.subjects; renderPalette(); }
@@ -775,7 +869,7 @@ function coverage(text){
 function renderAdmission(d){
   lastAdm = d;
   if (!d.majors || !d.majors.length){
-    $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력해 전체를 보세요.'); return;
+    $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력하면 전체를 볼 수 있어요.'); return;
   }
   const src = safeUrl(d.sourceUrl);
   const loc = [d.region, d.area].filter(Boolean).join(' · ');
@@ -802,10 +896,10 @@ function renderAdmission(d){
 async function loadAdmission(){
   const university = $('admUni').value.trim();
   const major = $('admMajor').value.trim();
-  if (!university){ $('admOut').innerHTML = info('대학명을 입력하세요. (예: 서울대, 연세대)'); return; }
+  if (!university){ $('admOut').innerHTML = info('대학명을 입력해 주세요. (예: 서울대, 연세대)'); return; }
   $('admOut').innerHTML = spinner('권장 이수과목을 찾는 중…');
   try{
-    const r = await fetch('/api/admission?'+new URLSearchParams({university, major}));
+    const r = { json: () => cachedJson('/api/admission?'+new URLSearchParams({university, major})) };
     const d = await r.json();
     if (d.error){
       const have = (d.universities||[]).map(u => u.name).join(', ');
@@ -863,7 +957,7 @@ async function openHomepage(ctx, btn){
   const prev = btn ? btn.textContent : '';
   if (btn) btn.textContent = '🌐 여는 중…';
   try{
-    const r = await fetch('/api/search?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/search?'+qp(ctx)) };
     const d = await r.json();
     const list = d.schools||[];
     const s = list.find(x => x.name===ctx.name) || list[0];
@@ -898,7 +992,7 @@ async function loadEval(ctx, seq, year){
   $('output').innerHTML = spinner('📋 '+h(ctx.name)+' '+what+' 가져오는 중… (다운로드+변환, 5~10초)');
   try{
     const extra = {}; if (seq) extra.seq = seq; if (year) extra.year = year;
-    const r = await fetch('/api/evaluation?'+qp(ctx, extra));
+    const r = { json: () => cachedJson('/api/evaluation?'+qp(ctx, extra)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     if (d.mode === 'list'){
@@ -1019,10 +1113,10 @@ function renderStructured(ctx, d){
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 async function loadAllEval(ctx, year){
-  $('output').innerHTML = spinner('📚 '+h(ctx.name)+' 전체 과목을 가져오는 중… (과목 수만큼 시간이 걸려요)');
+  $('output').innerHTML = spinner('📚 '+h(ctx.name)+' 전체 과목을 가져오는 중… (과목이 많으면 시간이 좀 걸려요)');
   try{
     const extra = {all:'1'}; if (year) extra.year = year;
-    const r = await fetch('/api/evaluation?'+qp(ctx, extra));
+    const r = { json: () => cachedJson('/api/evaluation?'+qp(ctx, extra)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year));
@@ -1032,7 +1126,7 @@ async function loadAllEval(ctx, year){
 async function loadSchedule(ctx){
   $('output').innerHTML = spinner('🗓 '+h(ctx.name)+' 학사일정을 가져오는 중…');
   try{
-    const r = await fetch('/api/schedule?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/schedule?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderSchedule(d);
@@ -1087,7 +1181,7 @@ function alStr(arr){ return (arr||[]).map(n=>ALLERGEN_NM[n]||('?'+n)).join('·')
 async function loadMeal(ctx){
   $('output').innerHTML = spinner('🍚 '+h(ctx.name)+' 급식을 가져오는 중…');
   try{
-    const r = await fetch('/api/meal?'+qp(ctx, {days:'7'}));
+    const r = { json: () => cachedJson('/api/meal?'+qp(ctx, {days:'7'})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderMeal(ctx, d);
@@ -1097,7 +1191,7 @@ async function loadMeal(ctx){
 async function loadWeek(ctx){
   $('output').innerHTML = spinner('📅 '+h(ctx.name)+' 이번주 브리핑을 가져오는 중…');
   try{
-    const r = await fetch('/api/week?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/week?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📅 '+h(d.school||ctx.name)+' 이번주', d.markdown, '');
@@ -1149,7 +1243,7 @@ function renderMeal(ctx, d){
 async function loadCompare(ctx){
   $('output').innerHTML = spinner('🏫 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학생수를 비교하는 중…');
   try{
-    const r = await fetch('/api/compare?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/compare?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderCompare(ctx, d);
@@ -1198,7 +1292,7 @@ function renderCompare(ctx, d){
 async function loadReport(ctx){
   $('output').innerHTML = spinner('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학교를 비교하는 중…');
   try{
-    const r = await fetch('/api/report?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/report?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 비교', d.markdown || (d.note||'표시할 학교가 없습니다.'), '');
@@ -1208,7 +1302,7 @@ async function loadReport(ctx){
 async function loadExams(ctx){
   $('output').innerHTML = spinner('📝 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 시험 일정을 모으는 중… (여러 학교라 조금 걸려요)');
   try{
-    const r = await fetch('/api/exams?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/exams?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📝 '+h(ctx.sgg||'')+' 시험 캘린더', d.markdown || (d.note||'표시할 시험 일정이 없습니다.'), '');
@@ -1218,7 +1312,7 @@ async function loadExams(ctx){
 async function loadDigest(ctx){
   $('output').innerHTML = spinner('📊 '+h(ctx.name)+' 공시정보를 가져오는 중…');
   try{
-    const r = await fetch('/api/digest?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/digest?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📊 '+h(d.school)+' 핵심 공시', d.markdown, '');
@@ -1270,12 +1364,106 @@ function gradeNav(wrap){
   });
   return bar;
 }
-// 평가계획 본문 + (학년 표제가 2개 이상이면) 상단 학년 바로가기를 묶어 반환.
+// 통합형 평가계획은 전 교과가 한 표에 rowspan으로 이어져, 표로 풀면 교과 제목이 묻혀
+// "내 교과를 못 찾겠다"는 피드백(학부모). "과목/교과" 머리글이 있는 표에 한해 첫 열의
+// 교과명 셀로 바로가기 칩을 만든다(표 구조는 안 건드림). 해당 머리글이 없으면 null → 무해.
+const SUBJECT_NAMES = [
+  '기술·가정','진로와 직업','창의적 체험활동','과학탐구실험','통합사회','통합과학',
+  '바른 생활','슬기로운 생활','즐거운 생활','정치와 법','생활과 윤리','한국사','한문',
+  '국어','도덕','사회','역사','수학','과학','기술','가정','정보','체육','음악','미술',
+  '영어','지리','물리','화학','생명과학','지구과학','경제','윤리','보건','환경','진로',
+].sort((a,b)=>b.length-a.length); // 긴 이름 우선 매칭('기술·가정'이 '기술'보다 먼저)
+function subjectNav(wrap){
+  const norm = (s)=> (s||'').trim().replace(/\\s/g,'');
+  const tables = [...wrap.querySelectorAll('table')].filter(t =>
+    t.rows[0] && [...t.rows[0].cells].some(c => /^(과목|교과)$/.test((c.textContent||'').trim())));
+  if (!tables.length) return null;
+  const seen = new Map(); // 교과명 → 셀 id (첫 출현만)
+  tables.forEach(t => {
+    [...t.rows].forEach(r => {
+      const c0 = r.cells[0]; if (!c0) return;
+      const txt = norm(c0.textContent);
+      if (!txt || txt.length > 8) return; // rowspan 생략 행(세부 평가요소)은 건너뜀
+      const hit = SUBJECT_NAMES.find(s => txt === norm(s) || txt.startsWith(norm(s)));
+      if (!hit || seen.has(hit)) return;
+      if (!c0.id) c0.id = 'snav-'+seen.size;
+      c0.style.scrollMarginTop = '52px';
+      c0.classList.add('subjcell');
+      seen.set(hit, c0.id);
+    });
+  });
+  if (seen.size < 2) return null;
+  const bar = document.createElement('div'); bar.className='gradenav subjnav';
+  bar.innerHTML = '<span class="flabel">교과</span>'
+    + [...seen].map(([name,id]) => '<button class="fchip" data-snav="'+id+'">'+h(name)+'</button>').join('');
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-snav]'); if (!b) return;
+    const t = document.getElementById(b.getAttribute('data-snav'));
+    if (t){ t.scrollIntoView({behavior:'smooth', block:'center'});
+      t.classList.add('flash'); setTimeout(()=>t.classList.remove('flash'), 1200); }
+  });
+  return bar;
+}
+// 통합형 평가계획의 거대표(전 교과가 한 표에 rowspan으로 이어짐)를 교과별 접이식으로
+// 재구성한다. 기본은 교과 목록만 접혀 보이고, 탭하면 그 교과표만 펼친다(모바일 가독성).
+// "과목/교과" 머리글 표만 대상, 교과 그룹이 2개 미만이면 손대지 않음 → false(폴백).
+function subjectAccordion(wrap){
+  const norm = (s)=> (s||'').trim().replace(/\\s/g,'');
+  let did = false;
+  [...wrap.querySelectorAll('table')].forEach(table => {
+    const head = table.rows[0];
+    if (!head) return;
+    const subjCol = [...head.cells].findIndex(c => /^(과목|교과)$/.test((c.textContent||'').trim()));
+    if (subjCol < 0) return;
+    const bodyRows = [...table.rows].slice(1);
+    // 첫 열(과목) 셀이 교과명인 행 = 새 교과 시작, 그 외(rowspan 세부행) = 현재 교과에 누적
+    const groups = []; let cur = null;
+    bodyRows.forEach(r => {
+      const c0 = r.cells[0];
+      const txt = c0 ? norm(c0.textContent) : '';
+      const hit = txt && txt.length <= 8 && SUBJECT_NAMES.find(s => txt === norm(s) || txt.startsWith(norm(s)));
+      if (hit){ cur = { name: hit, rows: [] }; groups.push(cur); }
+      if (cur) cur.rows.push(r);
+    });
+    if (groups.length < 2) return;
+    const accWrap = document.createElement('div'); accWrap.className = 'subj-acc-wrap';
+    groups.forEach(g => {
+      const det = document.createElement('details'); det.className = 'subj-acc';
+      const sum = document.createElement('summary'); sum.textContent = g.name; det.appendChild(sum);
+      const t = document.createElement('table'); t.className = table.className;
+      const thead = document.createElement('thead');
+      const hr = head.cloneNode(true);
+      if (hr.cells[subjCol]) hr.deleteCell(subjCol);   // 과목 열은 summary가 대신 → 작은 표에선 제거
+      thead.appendChild(hr); t.appendChild(thead);
+      const tb = document.createElement('tbody');
+      g.rows.forEach((r, ri) => {
+        const rc = r.cloneNode(true);
+        // 과목 셀(rowspan)은 그룹 첫 행에만 → 제거(텍스트 일치 확인 후에만, 안전)
+        if (ri === 0 && rc.cells[subjCol] && norm(rc.cells[subjCol].textContent) === norm(g.name)) rc.deleteCell(subjCol);
+        tb.appendChild(rc);
+      });
+      t.appendChild(tb);
+      const tw = document.createElement('div'); tw.className = 'tablewrap'; tw.appendChild(t);
+      det.appendChild(tw); accWrap.appendChild(det);
+    });
+    // mdToOut이 거대표를 이미 .tablewrap으로 감싸고 뒤에 .scroll-hint를 붙였으므로 그 묶음째 교체
+    const outerWrap = table.closest('.tablewrap');
+    const target = outerWrap || table;
+    if (outerWrap && outerWrap.nextElementSibling && outerWrap.nextElementSibling.classList.contains('scroll-hint')) outerWrap.nextElementSibling.remove();
+    target.replaceWith(accWrap);
+    did = true;
+  });
+  return did;
+}
+// 평가계획 본문 + 상단 바로가기. 통합표는 교과 아코디언으로 재구성(되면 바로가기 칩 생략).
 function mdWithGradeNav(md){
   const out = mdToOut(md);
-  const nav = gradeNav(out);
   const box = document.createElement('div');
-  if (nav) box.appendChild(nav);
+  const gnav = gradeNav(out);
+  const accOk = subjectAccordion(out);
+  const snav = accOk ? null : subjectNav(out);
+  if (gnav) box.appendChild(gnav);
+  if (snav) box.appendChild(snav);
   box.appendChild(out);
   return box;
 }
@@ -1339,8 +1527,6 @@ $('recent').addEventListener('click', (e) => {
   $('output').innerHTML='';
   $('results').scrollIntoView({behavior:'smooth', block:'start'});
 });
-
-renderRecent();
 
 /* ── 원격 MCP 주소 복사 ── */
 (function(){

@@ -395,6 +395,16 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     margin:14px 0 4px; padding:9px 0; background:var(--surface); border-bottom:1px solid var(--hair);}
   .fchip.sub[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent); border-color:var(--accent-line);}
   .subjnav .flabel{color:var(--accent);}
+  /* 교과 아코디언 — 통합형 평가계획을 교과별로 접어 모바일 가독성 확보 */
+  .subj-acc-wrap{margin:16px 0;}
+  .subj-acc{border:1px solid var(--hair-strong); border-radius:8px; background:var(--surface); margin-bottom:8px; overflow:hidden;}
+  .subj-acc>summary{cursor:pointer; list-style:none; padding:13px 16px; font-weight:700; font-size:15px; color:var(--ink); display:flex; align-items:center; justify-content:space-between; -webkit-tap-highlight-color:transparent;}
+  .subj-acc>summary::-webkit-details-marker{display:none;}
+  .subj-acc>summary::after{content:'▾'; color:var(--mut); font-size:12px; transition:transform .2s;}
+  .subj-acc[open]>summary{background:var(--bg2); border-bottom:1px solid var(--hair);}
+  .subj-acc[open]>summary::after{transform:rotate(180deg);}
+  .subj-acc>summary:hover{background:var(--bg2);}
+  .subj-acc .tablewrap{margin:0; border:0; border-radius:0;}
   td.subjcell{font-weight:700;}
   td.flash{animation:cellflash 1.2s ease;}
   @keyframes cellflash{0%,100%{background:transparent;}25%{background:var(--accent-soft);}}
@@ -1373,12 +1383,64 @@ function subjectNav(wrap){
   });
   return bar;
 }
-// 평가계획 본문 + (학년/교과 표제가 2개 이상이면) 상단 바로가기를 묶어 반환.
+// 통합형 평가계획의 거대표(전 교과가 한 표에 rowspan으로 이어짐)를 교과별 접이식으로
+// 재구성한다. 기본은 교과 목록만 접혀 보이고, 탭하면 그 교과표만 펼친다(모바일 가독성).
+// "과목/교과" 머리글 표만 대상, 교과 그룹이 2개 미만이면 손대지 않음 → false(폴백).
+function subjectAccordion(wrap){
+  const norm = (s)=> (s||'').trim().replace(/\\s/g,'');
+  let did = false;
+  [...wrap.querySelectorAll('table')].forEach(table => {
+    const head = table.rows[0];
+    if (!head) return;
+    const subjCol = [...head.cells].findIndex(c => /^(과목|교과)$/.test((c.textContent||'').trim()));
+    if (subjCol < 0) return;
+    const bodyRows = [...table.rows].slice(1);
+    // 첫 열(과목) 셀이 교과명인 행 = 새 교과 시작, 그 외(rowspan 세부행) = 현재 교과에 누적
+    const groups = []; let cur = null;
+    bodyRows.forEach(r => {
+      const c0 = r.cells[0];
+      const txt = c0 ? norm(c0.textContent) : '';
+      const hit = txt && txt.length <= 8 && SUBJECT_NAMES.find(s => txt === norm(s) || txt.startsWith(norm(s)));
+      if (hit){ cur = { name: hit, rows: [] }; groups.push(cur); }
+      if (cur) cur.rows.push(r);
+    });
+    if (groups.length < 2) return;
+    const accWrap = document.createElement('div'); accWrap.className = 'subj-acc-wrap';
+    groups.forEach(g => {
+      const det = document.createElement('details'); det.className = 'subj-acc';
+      const sum = document.createElement('summary'); sum.textContent = g.name; det.appendChild(sum);
+      const t = document.createElement('table'); t.className = table.className;
+      const thead = document.createElement('thead');
+      const hr = head.cloneNode(true);
+      if (hr.cells[subjCol]) hr.deleteCell(subjCol);   // 과목 열은 summary가 대신 → 작은 표에선 제거
+      thead.appendChild(hr); t.appendChild(thead);
+      const tb = document.createElement('tbody');
+      g.rows.forEach((r, ri) => {
+        const rc = r.cloneNode(true);
+        // 과목 셀(rowspan)은 그룹 첫 행에만 → 제거(텍스트 일치 확인 후에만, 안전)
+        if (ri === 0 && rc.cells[subjCol] && norm(rc.cells[subjCol].textContent) === norm(g.name)) rc.deleteCell(subjCol);
+        tb.appendChild(rc);
+      });
+      t.appendChild(tb);
+      const tw = document.createElement('div'); tw.className = 'tablewrap'; tw.appendChild(t);
+      det.appendChild(tw); accWrap.appendChild(det);
+    });
+    // mdToOut이 거대표를 이미 .tablewrap으로 감싸고 뒤에 .scroll-hint를 붙였으므로 그 묶음째 교체
+    const outerWrap = table.closest('.tablewrap');
+    const target = outerWrap || table;
+    if (outerWrap && outerWrap.nextElementSibling && outerWrap.nextElementSibling.classList.contains('scroll-hint')) outerWrap.nextElementSibling.remove();
+    target.replaceWith(accWrap);
+    did = true;
+  });
+  return did;
+}
+// 평가계획 본문 + 상단 바로가기. 통합표는 교과 아코디언으로 재구성(되면 바로가기 칩 생략).
 function mdWithGradeNav(md){
   const out = mdToOut(md);
   const box = document.createElement('div');
   const gnav = gradeNav(out);
-  const snav = subjectNav(out);
+  const accOk = subjectAccordion(out);
+  const snav = accOk ? null : subjectNav(out);
   if (gnav) box.appendChild(gnav);
   if (snav) box.appendChild(snav);
   box.appendChild(out);

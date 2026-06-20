@@ -112,7 +112,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .hero{padding:72px 0 36px;}
   .eyebrow{
     display:inline-flex; align-items:center; gap:9px; margin-bottom:26px;
-    font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--mut); font-weight:500;
+    font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--mut); font-weight:500;
   }
   .eyebrow .pulse{width:5px; height:5px; border-radius:50%; background:var(--accent);}
   h1.display{
@@ -142,7 +142,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== Form ===== */
   .row{display:flex; gap:10px; flex-wrap:wrap;}
   .row>*{flex:1; min-width:130px;}
-  label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin:0 0 7px 2px;}
+  label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin:0 0 7px 2px;}
   select,input{width:100%; padding:13px 14px; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);
     font-size:17px; background:var(--bg2); color:var(--ink); font-family:inherit; appearance:none; -webkit-appearance:none; transition:border-color .15s, box-shadow .15s;}
   select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a817a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:34px;}
@@ -170,7 +170,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Recent chips ===== */
   .recent{margin-bottom:20px;}
-  .recent .head{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut);
+  .recent .head{font-family:var(--mono); font-size:11px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut);
     margin:0 2px 10px; display:flex; justify-content:space-between; align-items:center;}
   .recent .head a{color:var(--ink-dim); cursor:pointer; text-transform:none; letter-spacing:0; font-family:var(--font); font-size:12px;}
   .recent .head a:hover{color:var(--ink);}
@@ -190,10 +190,19 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .school:first-child{padding-top:2px;}
   .school:last-child{border-bottom:0; padding-bottom:2px;}
   .school h3{margin:0 0 5px; font-size:19px; font-weight:700; letter-spacing:-0.02em;}
-  .school .tag{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:.04em; text-transform:uppercase;}
+  .school .tag{display:inline-block; font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:0;}
   .school .meta{font-size:14px; color:var(--ink-dim); margin:0 0 13px;}
   .acts{display:flex; gap:8px; flex-wrap:wrap;}
-  .count{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin:0 2px 6px;}
+  .count{font-size:11px; letter-spacing:.01em; color:var(--mut); margin:0 2px 7px; font-weight:500;}
+  /* 일상정보 접이식 — 다른 pill 버튼과 톤 통일, 기본 ▶ marker 제거 */
+  .more-daily{margin:10px 0 2px;}
+  .more-daily>summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; font-size:13px; padding:7px 14px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); -webkit-tap-highlight-color:transparent; transition:background .15s,border-color .15s,color .15s;}
+  .more-daily>summary::-webkit-details-marker{display:none;}
+  .more-daily>summary::after{content:'▾'; font-size:11px; color:var(--mut); transition:transform .2s;}
+  .more-daily[open]>summary{background:var(--bg2); color:var(--ink); border-color:var(--accent-line);}
+  .more-daily[open]>summary::after{transform:rotate(180deg);}
+  .more-daily:hover>summary{color:var(--ink); background:var(--bg2);}
+  .more-daily .acts{margin-top:10px;}
 
   /* ===== Output (markdown) ===== */
   .result-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:4px;}
@@ -227,7 +236,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .out table{border-collapse:collapse; width:100%; font-size:14px; background:var(--surface);}
   .out th,.out td{border-bottom:1px solid var(--hair); border-right:1px solid var(--hair); padding:10px 13px; text-align:left; vertical-align:top;}
   .out tr:last-child td{border-bottom:0;}
-  .out th{background:var(--bg2); font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim); font-weight:600;}
+  .out th{background:var(--bg2); font-size:11.5px; letter-spacing:.01em; color:var(--ink-dim); font-weight:600;}
   .out th:last-child,.out td:last-child{border-right:0;}
   /* 넓은 표(3열+ · 수행평가): 가로 스크롤 + 첫 열 고정 + 끝 페이드 + 힌트 */
   .tablewrap{position:relative; overflow-x:auto; -webkit-overflow-scrolling:touch; margin:12px 0; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);}
@@ -241,7 +250,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* 비교표: 선택한 내 학교 행 강조 (sticky 첫 열 배경도 함께) */
   .out table.wide tr.mine td{background:var(--hl-bg); color:var(--accent-ink);}
   .out table.wide tr.mine td:first-child{background:rgba(181,86,42,.2);}
-  .scroll-hint{display:none; font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
+  .scroll-hint{display:none; font-size:11px; letter-spacing:.01em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
   /* 학생수 비교 가로 막대 (표 위 한눈 요약) */
   .barlist{margin:14px 0 6px; display:flex; flex-direction:column; gap:9px;}
   .barrow{display:grid; grid-template-columns:minmax(78px,32%) 1fr auto; align-items:center; gap:10px; font-size:13px;}
@@ -301,14 +310,14 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Disclosure section (대폭 축소) ===== */
   .section{padding:48px 0 8px; border-top:1px solid var(--hair); margin-top:40px;}
-  .chapter-label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); margin-bottom:14px;}
+  .chapter-label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.04em; text-transform:uppercase; color:var(--mut); margin-bottom:14px;}
   .section h2{margin:0 0 14px; font-size:clamp(24px,5vw,34px); line-height:1.12; font-weight:700; letter-spacing:-0.03em; color:var(--ink);}
   .section .lead{margin:0 0 28px; color:var(--ink-dim); font-size:15.5px; line-height:1.65; max-width:520px;}
 
   /* 핵심 두 줄 요약 (수행평가 / 급식) */
   .feat{padding:18px 0; border-top:1px solid var(--hair);}
   .feat:first-of-type{border-top:0;}
-  .feat .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:7px;}
+  .feat .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.03em; text-transform:uppercase; color:var(--accent); margin-bottom:7px;}
   .feat h3{margin:0 0 6px; font-size:18px; font-weight:700; letter-spacing:-0.02em;}
   .feat p{margin:0; color:var(--ink-dim); font-size:14.5px; line-height:1.65;}
   .feat p b{color:var(--ink);}
@@ -326,7 +335,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== 학년/과목 필터 칩 (structured 평가표) ===== */
   .filters{display:flex; flex-direction:column; gap:11px; margin:16px 0 10px;}
   .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center; min-width:0;}
-  .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
   .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:var(--surface); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
   .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-0.01em;}
   table.sched{width:100%; border-collapse:collapse;}
@@ -350,7 +359,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .adm-major .mcampus{font-size:11px; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:6px; padding:1px 6px; margin-left:6px;}
   .adm-loc{font-size:12px; font-weight:500; color:var(--mut);}
   .adm-row{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; margin-top:7px;}
-  .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
+  .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
   .subj{font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
   .subj.core{background:var(--accent); color:#fff; border-color:var(--accent);}
   .subj-text{font-size:13px; color:var(--ink-dim); line-height:1.5; flex:1; min-width:0;}
@@ -423,12 +432,12 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 </div></nav>
 <main>
   <div class="modetab" role="tablist" aria-label="보기 전환">
-    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="true">📊 학교 비교</button>
-    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="false">📋 수행평가·내신</button>
+    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true">📋 수행평가·내신</button>
+    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="false">📊 학교 비교</button>
     <button id="mvUni" class="mt-btn" role="tab" aria-selected="false">🎓 대학 진학</button>
   </div>
 
-  <div id="viewCompare">
+  <div id="viewCompare" class="hidden">
   <section class="hero">
     <span class="eyebrow"><span class="pulse"></span>같은 동네 학교 한눈에 비교</span>
     <h1 class="display">우리 동네 학교를,<br/><span class="accent">한 표로.</span></h1>
@@ -444,7 +453,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   </section>
   </div><!-- /viewCompare -->
 
-  <div id="viewSchool" class="hidden">
+  <div id="viewSchool">
   <section class="hero">
     <span class="eyebrow"><span class="pulse"></span>학교 이름으로 · 수행평가·내신·공시</span>
     <h1 class="display">내신 챙길 때,<br/><span class="accent">학교 이름 하나로.</span></h1>
@@ -591,7 +600,7 @@ $('tabRegion').onclick = () => setMode('region');
 function setView(v){
   const views = {compare:'viewCompare', school:'viewSchool', uni:'viewUni'};
   const tabs  = {compare:'mvCompare',   school:'mvSchool',   uni:'mvUni'};
-  if (!views[v]) v = 'compare';
+  if (!views[v]) v = 'school';
   for (const k in views){
     $(views[k]).classList.toggle('hidden', k !== v);
     $(tabs[k]).setAttribute('aria-selected', String(k === v));
@@ -600,7 +609,7 @@ function setView(v){
   $('output').innerHTML=''; $('results').innerHTML='';
   // 최근 본 학교는 수행평가·내신(school) 맥락에서만 노출
   if (v === 'school') renderRecent(); else { $('recent').classList.add('hidden'); $('recent').innerHTML=''; }
-  const hash = v === 'compare' ? location.pathname : '#'+v;
+  const hash = v === 'school' ? location.pathname : '#'+v;
   try{ history.replaceState(null, '', hash); }catch(_){}
   window.scrollTo({top:0});
 }
@@ -608,7 +617,7 @@ $('mvCompare').onclick = () => setView('compare');
 $('mvSchool').onclick = () => setView('school');
 $('mvUni').onclick = () => setView('uni');
 const _vh = location.hash.toLowerCase();
-setView(_vh.indexOf('uni')>=0 ? 'uni' : (_vh.indexOf('school')>=0 ? 'school' : 'compare'));
+setView(_vh.indexOf('uni')>=0 ? 'uni' : (_vh.indexOf('compare')>=0 ? 'compare' : 'school'));
 
 /* ── 지역 검색: 시군구 채우기 ── */
 $('sido').onchange = () => {
@@ -648,7 +657,7 @@ function schoolCard(ctx, opts){
     + ((ctx.kind && (ctx.kind.indexOf('중학교')>=0 || ctx.kind.indexOf('고등학교')>=0))
         ? '<button class="btn btn-soft btn-sm" data-act="achievement" '+d+'>📈 학업성취도</button>' : '')
     + hpBtn;
-  const dailyDetails = '<details class="more-daily"><summary>🍱 급식·학사일정·이번주 더보기</summary>'
+  const dailyDetails = '<details class="more-daily"><summary>🍱 급식·학사일정·이번주</summary>'
     + '<div class="acts" style="margin-top:8px">'
     + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
     + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
@@ -685,6 +694,7 @@ async function findByName(){
       {tag:s.kind, resolveHome:true, meta:[[s.sido,s.sgg,s.dong].filter(Boolean).join(' '), s.foundation].filter(Boolean).map(h).join(' · ')}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
+    $('results').scrollIntoView({behavior:'smooth', block:'start'});
   }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findName').onclick = findByName;
@@ -706,6 +716,7 @@ async function findByRegion(){
       {meta:[s.foundation, s.address, (s.tel?'☎ '+s.tel:'')].filter(Boolean).map(h).join(' · '), homepage:s.homepage}
     )).join('');
     $('results').innerHTML = '<div class="card"><div class="count">'+list.length+'개 학교</div>'+cards+'</div>';
+    $('results').scrollIntoView({behavior:'smooth', block:'start'});
   }catch(e){ $('results').innerHTML = info('지금은 학교를 찾지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 $('findRegion').onclick = findByRegion;

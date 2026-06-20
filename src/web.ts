@@ -380,6 +380,10 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .gradenav{position:sticky; top:0; z-index:5; display:flex; flex-wrap:wrap; gap:7px; align-items:center;
     margin:14px 0 4px; padding:9px 0; background:var(--surface); border-bottom:1px solid var(--hair);}
   .fchip.sub[aria-pressed="true"]{background:var(--accent-soft); color:var(--accent); border-color:var(--accent-line);}
+  .subjnav .flabel{color:var(--accent);}
+  td.subjcell{font-weight:700;}
+  td.flash{animation:cellflash 1.2s ease;}
+  @keyframes cellflash{0%,100%{background:transparent;}25%{background:var(--accent-soft);}}
 
   /* ===== Reveal on scroll ===== */
   .reveal{opacity:0; transform:translateY(18px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);}
@@ -1313,12 +1317,54 @@ function gradeNav(wrap){
   });
   return bar;
 }
-// 평가계획 본문 + (학년 표제가 2개 이상이면) 상단 학년 바로가기를 묶어 반환.
+// 통합형 평가계획은 전 교과가 한 표에 rowspan으로 이어져, 표로 풀면 교과 제목이 묻혀
+// "내 교과를 못 찾겠다"는 피드백(학부모). "과목/교과" 머리글이 있는 표에 한해 첫 열의
+// 교과명 셀로 바로가기 칩을 만든다(표 구조는 안 건드림). 해당 머리글이 없으면 null → 무해.
+const SUBJECT_NAMES = [
+  '기술·가정','진로와 직업','창의적 체험활동','과학탐구실험','통합사회','통합과학',
+  '바른 생활','슬기로운 생활','즐거운 생활','정치와 법','생활과 윤리','한국사','한문',
+  '국어','도덕','사회','역사','수학','과학','기술','가정','정보','체육','음악','미술',
+  '영어','지리','물리','화학','생명과학','지구과학','경제','윤리','보건','환경','진로',
+].sort((a,b)=>b.length-a.length); // 긴 이름 우선 매칭('기술·가정'이 '기술'보다 먼저)
+function subjectNav(wrap){
+  const norm = (s)=> (s||'').trim().replace(/\\s/g,'');
+  const tables = [...wrap.querySelectorAll('table')].filter(t =>
+    t.rows[0] && [...t.rows[0].cells].some(c => /^(과목|교과)$/.test((c.textContent||'').trim())));
+  if (!tables.length) return null;
+  const seen = new Map(); // 교과명 → 셀 id (첫 출현만)
+  tables.forEach(t => {
+    [...t.rows].forEach(r => {
+      const c0 = r.cells[0]; if (!c0) return;
+      const txt = norm(c0.textContent);
+      if (!txt || txt.length > 8) return; // rowspan 생략 행(세부 평가요소)은 건너뜀
+      const hit = SUBJECT_NAMES.find(s => txt === norm(s) || txt.startsWith(norm(s)));
+      if (!hit || seen.has(hit)) return;
+      if (!c0.id) c0.id = 'snav-'+seen.size;
+      c0.style.scrollMarginTop = '52px';
+      c0.classList.add('subjcell');
+      seen.set(hit, c0.id);
+    });
+  });
+  if (seen.size < 2) return null;
+  const bar = document.createElement('div'); bar.className='gradenav subjnav';
+  bar.innerHTML = '<span class="flabel">교과</span>'
+    + [...seen].map(([name,id]) => '<button class="fchip" data-snav="'+id+'">'+h(name)+'</button>').join('');
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-snav]'); if (!b) return;
+    const t = document.getElementById(b.getAttribute('data-snav'));
+    if (t){ t.scrollIntoView({behavior:'smooth', block:'center'});
+      t.classList.add('flash'); setTimeout(()=>t.classList.remove('flash'), 1200); }
+  });
+  return bar;
+}
+// 평가계획 본문 + (학년/교과 표제가 2개 이상이면) 상단 바로가기를 묶어 반환.
 function mdWithGradeNav(md){
   const out = mdToOut(md);
-  const nav = gradeNav(out);
   const box = document.createElement('div');
-  if (nav) box.appendChild(nav);
+  const gnav = gradeNav(out);
+  const snav = subjectNav(out);
+  if (gnav) box.appendChild(gnav);
+  if (snav) box.appendChild(snav);
   box.appendChild(out);
   return box;
 }

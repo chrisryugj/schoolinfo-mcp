@@ -100,13 +100,18 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   main{max-width:var(--maxw); margin:0 auto; padding:0 22px;}
 
   /* ===== Mode tabs (우리 학교 / 대학 진학) ===== */
-  .modetab{display:flex; gap:9px; max-width:var(--maxw); margin:0 auto; padding:22px 22px 0;}
-  .mt-btn{flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px;
-    padding:13px 12px; border:1px solid var(--hair-strong); border-radius:12px; background:var(--surface);
-    font-family:inherit; font-weight:700; font-size:14.5px; color:var(--ink-dim); cursor:pointer;
-    transition:background .2s, color .2s, border-color .2s; -webkit-tap-highlight-color:transparent;}
-  .mt-btn[aria-selected="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .mt-btn:not([aria-selected="true"]):hover{background:var(--bg2); color:var(--ink);}
+  .modetab{display:grid; grid-template-columns:repeat(3,1fr); gap:9px; max-width:var(--maxw); margin:0 auto; padding:22px 22px 0;}
+  .mt-btn{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:76px;
+    padding:14px 10px; border:1px solid var(--hair-strong); border-radius:10px; background:var(--surface);
+    font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;
+    transition:background .2s, border-color .2s, transform .1s;}
+  .mt-btn:active{transform:scale(.97);}
+  .mt-ic{font-size:21px; line-height:1;}
+  .mt-lb{font-size:13.5px; font-weight:700; color:var(--ink-dim); line-height:1.25; text-align:center; word-break:keep-all;}
+  .mt-btn[aria-selected="true"]{background:var(--accent); border-color:var(--accent);}
+  .mt-btn[aria-selected="true"] .mt-lb{color:#fff;}
+  .mt-btn:not([aria-selected="true"]):hover{background:var(--bg2);}
+  .mt-btn:not([aria-selected="true"]):hover .mt-lb{color:var(--ink);}
 
   /* ===== Hero ===== */
   .hero{padding:72px 0 36px;}
@@ -154,7 +159,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   /* ===== Buttons ===== */
   .btn{display:inline-flex; align-items:center; justify-content:center; gap:6px; text-decoration:none;
-    border:1px solid transparent; border-radius:999px; padding:12px 20px; font-size:15px; font-weight:600;
+    border:1px solid transparent; border-radius:8px; padding:12px 20px; font-size:15px; font-weight:600;
     cursor:pointer; font-family:inherit; -webkit-tap-highlight-color:transparent; white-space:nowrap;
     transition:transform .08s, background .2s, border-color .2s, opacity .2s;}
   .btn:active{transform:scale(.97);}
@@ -177,7 +182,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .recent .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 2px 4px; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
   .recent .chips::-webkit-scrollbar{display:none;}
   .recent .chip{display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; max-width:80vw; white-space:nowrap; overflow:hidden;
-    background:var(--surface); border:1px solid var(--hair-strong); border-radius:999px;
+    background:var(--surface); border:1px solid var(--hair-strong); border-radius:8px;
     padding:8px 8px 8px 15px; font-size:14px; color:var(--ink); cursor:pointer; transition:background .2s, transform .08s;}
   .recent .chip:hover{background:var(--bg2);}
   .recent .chip:active{transform:scale(.97);}
@@ -196,7 +201,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .count{font-size:11px; letter-spacing:.01em; color:var(--mut); margin:0 2px 7px; font-weight:500;}
   /* 일상정보 접이식 — 다른 pill 버튼과 톤 통일, 기본 ▶ marker 제거 */
   .more-daily{margin:10px 0 2px;}
-  .more-daily>summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; font-size:13px; padding:7px 14px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); -webkit-tap-highlight-color:transparent; transition:background .15s,border-color .15s,color .15s;}
+  .more-daily>summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; font-size:13px; padding:8px 14px; border-radius:8px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); -webkit-tap-highlight-color:transparent; transition:background .15s,border-color .15s,color .15s;}
   .more-daily>summary::-webkit-details-marker{display:none;}
   .more-daily>summary::after{content:'▾'; font-size:11px; color:var(--mut); transition:transform .2s;}
   .more-daily[open]>summary{background:var(--bg2); color:var(--ink); border-color:var(--accent-line);}
@@ -336,7 +341,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .filters{display:flex; flex-direction:column; gap:11px; margin:16px 0 10px;}
   .frow{display:flex; flex-wrap:wrap; gap:7px; align-items:center; min-width:0;}
   .frow .flabel{font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
-  .fchip{font-size:13px; padding:7px 13px; border-radius:999px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:var(--surface); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
+  .fchip{font-size:13px; padding:7px 13px; border-radius:7px; border:1px solid var(--hair-strong); color:var(--ink-dim); background:var(--surface); cursor:pointer; transition:background .15s,color .15s,border-color .15s; -webkit-tap-highlight-color:transparent; white-space:normal; max-width:100%; font-family:inherit;}
   .detail-head{margin:22px 0 10px; font-size:15px; font-weight:700; color:var(--ink); letter-spacing:-0.01em;}
   table.sched{width:100%; border-collapse:collapse;}
   table.sched td{padding:8px 4px; border-bottom:1px solid var(--hair); font-size:14px; vertical-align:top; line-height:1.45;}
@@ -360,7 +365,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .adm-loc{font-size:12px; font-weight:500; color:var(--mut);}
   .adm-row{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; margin-top:7px;}
   .adm-row .lab{font-family:var(--mono); font-size:10px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin-right:2px; flex:0 0 auto;}
-  .subj{font-size:12.5px; padding:4px 10px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
+  .subj{font-size:12.5px; padding:4px 10px; border-radius:6px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); white-space:nowrap;}
   .subj.core{background:var(--accent); color:#fff; border-color:var(--accent);}
   .subj-text{font-size:13px; color:var(--ink-dim); line-height:1.5; flex:1; min-width:0;}
   .adm-row.note .subj-text{color:var(--mut); font-size:12.5px;}
@@ -375,7 +380,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .ms-body{padding:0 18px 18px; border-top:1px solid var(--hair);}
   .ms-help{margin:13px 0 12px; font-size:12.5px; color:var(--ink-dim); line-height:1.55;}
   .ms-palette{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:13px;}
-  .ms-chip{font-size:12.5px; padding:6px 12px; border-radius:999px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s; font-family:inherit; -webkit-tap-highlight-color:transparent;}
+  .ms-chip{font-size:12.5px; padding:6px 12px; border-radius:6px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s, border-color .15s; font-family:inherit; -webkit-tap-highlight-color:transparent;}
   .ms-chip:hover{background:var(--bg2); color:var(--ink);}
   .ms-chip[aria-pressed="true"]{background:var(--accent); color:#fff; border-color:var(--accent);}
   .ms-add{display:flex; gap:7px;}
@@ -403,7 +408,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   footer .f-line{font-family:var(--mono); font-size:11.5px; letter-spacing:.03em; color:var(--mut); line-height:1.9;}
   footer .f-actions{margin-top:13px; display:flex; justify-content:center;}
   .copy-mcp{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:12px; letter-spacing:.02em; color:var(--ink-dim);
-    background:var(--surface); border:1px solid var(--hair-strong); border-radius:999px; padding:7px 14px; cursor:pointer; transition:.2s; -webkit-tap-highlight-color:transparent;}
+    background:var(--surface); border:1px solid var(--hair-strong); border-radius:8px; padding:7px 14px; cursor:pointer; transition:.2s; -webkit-tap-highlight-color:transparent;}
   .copy-mcp:hover{color:var(--accent); background:var(--accent-soft); border-color:var(--accent-line);}
   .copy-mcp .cm-ic{opacity:.7;}
   .copy-mcp.copied{color:var(--safe); border-color:rgba(63,122,72,.4); background:rgba(63,122,72,.08);}
@@ -432,9 +437,9 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 </div></nav>
 <main>
   <div class="modetab" role="tablist" aria-label="보기 전환">
-    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true">📋 수행평가·내신</button>
-    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="false">📊 학교 비교</button>
-    <button id="mvUni" class="mt-btn" role="tab" aria-selected="false">🎓 대학 진학</button>
+    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true"><span class="mt-ic">📋</span><span class="mt-lb">수행평가·내신</span></button>
+    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="false"><span class="mt-ic">📊</span><span class="mt-lb">학교 비교</span></button>
+    <button id="mvUni" class="mt-btn" role="tab" aria-selected="false"><span class="mt-ic">🎓</span><span class="mt-lb">대학 진학</span></button>
   </div>
 
   <div id="viewCompare" class="hidden">

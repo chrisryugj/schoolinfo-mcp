@@ -71,6 +71,12 @@ export function formatDisclosure(
   apiType?: string
 ): string {
   if (!rows.length) return `### ${name}\n\n(해당 공시 데이터가 없습니다)`;
+  // "09 학년별·학급별 학생수"는 generic 2열 표로 풀면 학년이 섞여 못 읽겠다는 피드백(학부모).
+  // 학년별로 구조화해 한눈에 보이게 한다. 학년 컬럼을 못 뽑는 양식이면 null → 아래 generic으로 폴백.
+  if (apiType === "09") {
+    const special = formatStudentCounts(name, rows);
+    if (special) return special;
+  }
   // 메타 식별 컬럼은 숨김
   const HIDE = new Set([
     "ATPT_OFCDC_ORG_CODE",
@@ -132,6 +138,61 @@ export interface DigestEntry {
 // 같은 시군구+학교급 학생수 비교표를 API 1회(자치구 시는 구 수만큼)로 만든다.
 
 const STUDENT_LABELS = (labelsData as any)["09"] as Record<string, string> | undefined;
+
+// "09 학년별·학급별 학생수"를 학년별로 구조화(getAreaStudents와 동일 컬럼 매핑 재사용).
+// 학년 데이터를 한 행도 못 뽑으면 null을 반환해 호출부가 generic 표로 폴백한다.
+function formatStudentCounts(
+  name: string,
+  rows: Record<string, any>[]
+): string | null {
+  const num = (v: any): number | null => {
+    if (v == null || v === "") return null;
+    const n = Number(String(v).replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const pick = (r: Record<string, any>, ...keys: string[]): number | null => {
+    for (const k of keys) {
+      const n = num(r[k]);
+      if (n != null) return n;
+    }
+    return null;
+  };
+  const lines: string[] = [`### ${name}`, ``];
+  let any = false;
+  for (const r of rows) {
+    const byGrade: Record<number, number> = {};
+    if (STUDENT_LABELS) {
+      for (const [k, label] of Object.entries(STUDENT_LABELS)) {
+        const m = /(?:초등부|중등부|고등부)-([1-6])학년 학생수$/.exec(label);
+        if (!m) continue;
+        const v = num(r[k]);
+        if (v != null && v > 0) byGrade[Number(m[1])] = v;
+      }
+    }
+    const grades = Object.keys(byGrade)
+      .map(Number)
+      .sort((a, b) => a - b);
+    if (!grades.length) continue; // 이 행은 학년 데이터 없음 — 건너뜀
+    any = true;
+    const total = pick(r, "COL_S_SUM", "COL_SUM_S4");
+    const classes = pick(r, "COL_C_SUM", "COL_SUM_C4");
+    const perClass = pick(r, "COL_SUM", "COL_SUM_4");
+    const perTeacher = pick(r, "TEACH_CAL");
+    // 학년을 열로 — 한 줄에 학년별 학생수가 정렬돼 보인다
+    lines.push(`| 구분 | ${grades.map((g) => `${g}학년`).join(" | ")} | 합계 |`);
+    lines.push(`|------|${grades.map(() => "------:").join("|")}|------:|`);
+    lines.push(
+      `| 학생수 | ${grades.map((g) => byGrade[g]).join(" | ")} | ${total ?? "—"} |`
+    );
+    lines.push(``);
+    const extra: string[] = [];
+    if (classes != null) extra.push(`학급수 **${classes}**`);
+    if (perClass != null) extra.push(`학급당 **${perClass}명**`);
+    if (perTeacher != null) extra.push(`교사 1인당 **${perTeacher}명**`);
+    if (extra.length) lines.push(extra.join(" · "), ``);
+  }
+  return any ? lines.join("\n") : null;
+}
 
 export interface AreaSchoolStudents {
   name: string;

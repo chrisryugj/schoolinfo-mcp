@@ -39,20 +39,20 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="theme-color" content="#fdfcfa"/>
-<title>우리 학교 알리미 — 매일 급식·수행평가·학사일정을 학교 이름 하나로</title>
-<meta name="description" content="전국 초·중·고의 매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day까지. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<title>우리 학교 알리미 — 학교 비교·수행평가, 흩어진 공시를 한 표로</title>
+<meta name="description" content="같은 동네 학교를 한 표로 비교하고, hwp 첨부에 묻힌 수행평가 계획을 표로 풀어 드려요. 전국 초·중·고 공시를 학교 이름만으로. 설치·가입 없이."/>
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="우리 학교 알리미"/>
 <meta property="og:locale" content="ko_KR"/>
 <meta property="og:url" content="https://school-mcp.fly.dev/"/>
-<meta property="og:title" content="우리 학교 알리미 — 학교 이름 하나로 매일 급식·수행평가·학사일정"/>
-<meta property="og:description" content="매일 급식(알레르기 회피 필터)·수행평가 계획·학사일정·시험 D-day. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
+<meta property="og:title" content="우리 학교 알리미 — 학교 비교·수행평가, 흩어진 공시를 한 표로"/>
+<meta property="og:description" content="같은 동네 학교를 한 표로 비교하고, hwp 첨부에 묻힌 수행평가 계획을 표로 풀어 드려요. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
 <meta property="og:image" content="https://school-mcp.fly.dev/og.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="우리 학교 알리미"/>
-<meta name="twitter:description" content="학교 이름 하나로 매일 급식·수행평가·학사일정을 한 번에."/>
+<meta name="twitter:description" content="같은 동네 학교를 한 표로 비교하고, 수행평가는 표로. 학교 이름 하나로."/>
 <meta name="twitter:image" content="https://school-mcp.fly.dev/og.png"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
@@ -419,15 +419,32 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 </div></nav>
 <main>
   <div class="modetab" role="tablist" aria-label="보기 전환">
-    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="true">🏫 우리 학교</button>
+    <button id="mvCompare" class="mt-btn" role="tab" aria-selected="true">📊 학교 비교</button>
+    <button id="mvSchool" class="mt-btn" role="tab" aria-selected="false">📋 수행평가·내신</button>
     <button id="mvUni" class="mt-btn" role="tab" aria-selected="false">🎓 대학 진학</button>
   </div>
 
-  <div id="viewSchool">
+  <div id="viewCompare">
   <section class="hero">
-    <span class="eyebrow"><span class="pulse"></span>전국 초·중·고 공시 · 급식 · 수행평가</span>
-    <h1 class="display">오늘 급식부터 수행평가까지,<br/><span class="accent">학교 이름 하나로.</span></h1>
-    <p class="hero-sub"><b>급식</b>은 알레르기까지 걸러서 보여주고, <b>수행평가</b> hwp는 표로 바꿔 드립니다. <b>시험 <span class="nb">D-day</span></b>와 이번주 일정도 학교 이름만 넣으면 됩니다.</p>
+    <span class="eyebrow"><span class="pulse"></span>같은 동네 학교 한눈에 비교</span>
+    <h1 class="display">우리 동네 학교를,<br/><span class="accent">한 표로.</span></h1>
+    <p class="hero-sub">지역과 학교급만 고르면 <b>학생수·학급당 인원·교사 1인당</b>까지 같은 동네 학교를 한 표로 견줘 드립니다. 학교를 고르거나 옮길 때, 계정 없이 바로.</p>
+  </section>
+  <section class="surface">
+    <div class="row">
+      <div><label>시도</label><select id="csido"><option value="">선택</option>${sidoOpts}</select></div>
+      <div><label>시군구</label><select id="csgg"><option value="">시도 먼저</option></select></div>
+      <div><label>학교급</label><select id="ckind">${kindOpts}</select></div>
+    </div>
+    <button id="findCompare" class="btn btn-primary full" style="margin-top:14px">학교 비교표 보기</button>
+  </section>
+  </div><!-- /viewCompare -->
+
+  <div id="viewSchool" class="hidden">
+  <section class="hero">
+    <span class="eyebrow"><span class="pulse"></span>학교 이름으로 · 수행평가·내신·공시</span>
+    <h1 class="display">내신 챙길 때,<br/><span class="accent">학교 이름 하나로.</span></h1>
+    <p class="hero-sub">hwp 첨부에 묻힌 <b>수행평가 계획</b>을 표로 풀어 드립니다. 학생수·동아리 같은 <b>공시</b>와 <b>시험 <span class="nb">D-day</span></b>도 학교 이름만 넣으면 됩니다.</p>
   </section>
 
   <section class="surface">
@@ -457,10 +474,6 @@ export function renderPage(regions: Regions, kinds: string[]): string {
       <button id="findRegion" class="btn btn-primary full" style="margin-top:14px">학교 찾기</button>
     </div>
   </section>
-
-  <section id="recent" class="recent hidden"></section>
-  <section id="results"></section>
-  <section id="output"></section>
 
   <section class="section">
     <span class="chapter-label">무엇을 알 수 있나요</span>
@@ -514,6 +527,11 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     <div id="admOut"></div>
   </section>
   </div><!-- /viewUni -->
+
+  <!-- 출력 영역: 모든 뷰 공용 (viewUni는 자체 #admOut 사용) -->
+  <section id="recent" class="recent hidden"></section>
+  <section id="results"></section>
+  <section id="output"></section>
 </main>
 
 <footer>
@@ -565,24 +583,45 @@ function setMode(mode){
 $('tabName').onclick = () => setMode('name');
 $('tabRegion').onclick = () => setMode('region');
 
-/* ── 최상위 모드: 우리 학교 / 대학 진학 ── */
+/* ── 최상위 모드: 학교 비교 / 수행평가·내신 / 대학 진학 ── */
 function setView(v){
-  const sch = v !== 'uni';
-  $('mvSchool').setAttribute('aria-selected', String(sch));
-  $('mvUni').setAttribute('aria-selected', String(!sch));
-  $('viewSchool').classList.toggle('hidden', !sch);
-  $('viewUni').classList.toggle('hidden', sch);
-  try{ history.replaceState(null, '', sch ? location.pathname : '#uni'); }catch(_){}
+  const views = {compare:'viewCompare', school:'viewSchool', uni:'viewUni'};
+  const tabs  = {compare:'mvCompare',   school:'mvSchool',   uni:'mvUni'};
+  if (!views[v]) v = 'compare';
+  for (const k in views){
+    $(views[k]).classList.toggle('hidden', k !== v);
+    $(tabs[k]).setAttribute('aria-selected', String(k === v));
+  }
+  // 출력영역은 모든 뷰 공용 → 탭을 넘기면 이전 결과·검색 잔상을 정리
+  $('output').innerHTML=''; $('results').innerHTML='';
+  // 최근 본 학교는 수행평가·내신(school) 맥락에서만 노출
+  if (v === 'school') renderRecent(); else { $('recent').classList.add('hidden'); $('recent').innerHTML=''; }
+  const hash = v === 'compare' ? location.pathname : '#'+v;
+  try{ history.replaceState(null, '', hash); }catch(_){}
   window.scrollTo({top:0});
 }
+$('mvCompare').onclick = () => setView('compare');
 $('mvSchool').onclick = () => setView('school');
 $('mvUni').onclick = () => setView('uni');
-if (location.hash.toLowerCase().indexOf('uni') >= 0) setView('uni');
+const _vh = location.hash.toLowerCase();
+setView(_vh.indexOf('uni')>=0 ? 'uni' : (_vh.indexOf('school')>=0 ? 'school' : 'compare'));
 
 /* ── 지역 검색: 시군구 채우기 ── */
 $('sido').onchange = () => {
   const sgg = REGIONS[$('sido').value] || [];
   $('sgg').innerHTML = '<option value="">전체</option>' + sgg.map(s => '<option>'+h(s)+'</option>').join('');
+};
+
+/* ── 학교 비교(viewCompare): 지역+학교급만으로 비교표 (학교를 먼저 안 찾아도 됨) ── */
+$('csido').onchange = () => {
+  const sgg = REGIONS[$('csido').value] || [];
+  $('csgg').innerHTML = '<option value="">선택</option>' + sgg.map(s => '<option>'+h(s)+'</option>').join('');
+};
+$('findCompare').onclick = () => {
+  const sido=$('csido').value, sgg=$('csgg').value, kind=$('ckind').value;
+  if (!sido || !sgg){ $('output').innerHTML = info('시도와 시군구를 선택하세요.'); return; }
+  // 학생수 구조화 비교표(정렬·학년열·가로막대) = 비교 첫인상. name 없으면 ★ 하이라이트만 비고 표는 정상.
+  loadCompare({sido, sgg, kind, name:''});
 };
 
 /* ── 학교 결과 카드 (검색 결과/최근학교 공용) ── */
@@ -598,20 +637,24 @@ function schoolCard(ctx, opts){
     : (opts.resolveHome && ctx.kind ? '<button class="btn btn-line btn-sm" data-act="home" '+d+'>🌐 홈페이지</button>' : '');
   // 학교급(kind)을 모르면 공시/평가계획 조회가 불가하므로 버튼 대신 안내 (지역검색 유도)
   // 두 묶음으로 — 그 학교 하나만 보는 것 / 동네 학교끼리 견줘 보는 것.
+  // 핵심(수행평가·내신·공시)은 전면. 일상정보(급식·학사일정·이번주)는 incumbent와 겹쳐 접이식으로 격하.
   const ownBtns = '<button class="btn btn-primary btn-sm" data-act="eval" '+d+'>📋 수행평가 계획</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
     + '<button class="btn btn-soft btn-sm" data-act="digest" '+d+'>📊 핵심 공시</button>'
-    + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
     // 학업성취(교과별 성적)는 중·고만 공시. 캡차로 자동조회 불가 → 학교알리미 딥링크 안내.
     + ((ctx.kind && (ctx.kind.indexOf('중학교')>=0 || ctx.kind.indexOf('고등학교')>=0))
         ? '<button class="btn btn-soft btn-sm" data-act="achievement" '+d+'>📈 학업성취도</button>' : '')
     + hpBtn;
+  const dailyDetails = '<details class="more-daily"><summary>🍱 급식·학사일정·이번주 더보기</summary>'
+    + '<div class="acts" style="margin-top:8px">'
+    + '<button class="btn btn-soft btn-sm" data-act="week" '+d+'>📅 이번주</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="meal" '+d+'>🍚 급식</button>'
+    + '<button class="btn btn-soft btn-sm" data-act="schedule" '+d+'>🗓 학사일정</button>'
+    + '</div></details>';
   const nearBtns = '<button class="btn btn-soft btn-sm" data-act="compare" '+d+'>🏫 주변 비교</button>'
     + '<button class="btn btn-soft btn-sm" data-act="report" '+d+'>📋 학교 비교표</button>'
     + '<button class="btn btn-soft btn-sm" data-act="exams" '+d+'>📝 시험 캘린더</button>';
   const acts = ctx.kind
-    ? '<div class="count">이 학교 보기</div><div class="acts">' + ownBtns + '</div>'
+    ? '<div class="count">이 학교 보기</div><div class="acts">' + ownBtns + '</div>' + dailyDetails
       + '<div class="count" style="margin-top:13px">동네 학교끼리 비교</div><div class="acts">' + nearBtns + '</div>'
     : '<p class="meta">학교급을 확인할 수 없어 조회가 제한돼요. <b>지역으로 검색</b> 탭을 이용하세요.</p>'
       + (hpBtn ? '<div class="acts">'+hpBtn+'</div>' : '');
@@ -1339,8 +1382,6 @@ $('recent').addEventListener('click', (e) => {
   $('output').innerHTML='';
   $('results').scrollIntoView({behavior:'smooth', block:'start'});
 });
-
-renderRecent();
 
 /* ── 원격 MCP 주소 복사 ── */
 (function(){

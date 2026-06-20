@@ -147,11 +147,11 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* ===== Form ===== */
   .row{display:flex; gap:10px; flex-wrap:wrap;}
   .row>*{flex:1; min-width:130px;}
-  label{display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.02em; text-transform:uppercase; color:var(--mut); margin:0 0 7px 2px;}
+  label{display:block; font-size:12px; letter-spacing:.01em; color:var(--ink-dim); font-weight:600; margin:0 0 7px 2px;}
   select,input{width:100%; padding:13px 14px; border:1px solid var(--hair-strong); border-radius:var(--radius-sm);
     font-size:17px; background:var(--bg2); color:var(--ink); font-family:inherit; appearance:none; -webkit-appearance:none; transition:border-color .15s, box-shadow .15s;}
   select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a817a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:34px;}
-  input::placeholder{color:var(--ink-dimmer);}
+  input::placeholder{color:var(--mut);}
   input:focus,select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
   .field-search{position:relative;}
   .field-search input{padding-left:44px;}
@@ -198,7 +198,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   .school .tag{display:inline-block; font-size:11px; color:var(--mut); margin-left:8px; vertical-align:middle; letter-spacing:0;}
   .school .meta{font-size:14px; color:var(--ink-dim); margin:0 0 13px;}
   .acts{display:flex; gap:8px; flex-wrap:wrap;}
-  .count{font-size:11px; letter-spacing:.01em; color:var(--mut); margin:0 2px 7px; font-weight:500;}
+  .count{font-size:12.5px; letter-spacing:.01em; color:var(--ink-dim); margin:0 2px 7px; font-weight:600;}
   /* 일상정보 접이식 — 다른 pill 버튼과 톤 통일, 기본 ▶ marker 제거 */
   .more-daily{margin:10px 0 2px;}
   .more-daily>summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none; font-size:13px; padding:8px 14px; border-radius:8px; border:1px solid var(--hair-strong); background:var(--surface); color:var(--ink-dim); -webkit-tap-highlight-color:transparent; transition:background .15s,border-color .15s,color .15s;}
@@ -255,7 +255,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* 비교표: 선택한 내 학교 행 강조 (sticky 첫 열 배경도 함께) */
   .out table.wide tr.mine td{background:var(--hl-bg); color:var(--accent-ink);}
   .out table.wide tr.mine td:first-child{background:rgba(181,86,42,.2);}
-  .scroll-hint{display:none; font-size:11px; letter-spacing:.01em; color:var(--mut); margin:-6px 2px 14px; text-align:center;}
+  .scroll-hint{display:none; font-size:12px; letter-spacing:.01em; color:var(--ink-dim); margin:-6px 2px 14px; text-align:center;}
   /* 학생수 비교 가로 막대 (표 위 한눈 요약) */
   .barlist{margin:14px 0 6px; display:flex; flex-direction:column; gap:9px;}
   .barrow{display:grid; grid-template-columns:minmax(78px,32%) 1fr auto; align-items:center; gap:10px; font-size:13px;}
@@ -505,13 +505,13 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 
   <section class="section">
     <span class="chapter-label">무엇을 알 수 있나요</span>
-    <h2>학교 이름 하나면<br/>이만큼 나옵니다.</h2>
-    <p class="lead">학교알리미 공시 35종, 첨부파일에 묻혀 있던 수행평가 계획, 그리고 NEIS의 매일 급식과 학사일정까지 한자리에 모았어요.</p>
+    <h2>학교 이름 하나면<br/>이렇게 많이 볼 수 있어요.</h2>
+    <p class="lead">학교알리미 공시 35종, 첨부파일에 묻혀 있던 수행평가 계획, 매일 급식과 학사일정까지 한곳에 모아 뒀어요.</p>
 
     <div class="feat reveal">
       <div class="k">학부모가 제일 많이 찾는 것</div>
       <h3>수행평가 계획</h3>
-      <p>아이가 무엇으로 평가받는지 — <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있어 열어보기 번거로운 이 자료를, 자동으로 받아 표로 정리해 드려요. 원본 파일도 그대로 내려받을 수 있고요.</p>
+      <p>아이가 무엇으로 평가받는지 — <b>평가 주제·기준·반영비율</b>. 학교알리미엔 hwp 첨부로만 들어 있어 열어보기 번거롭죠. 그걸 자동으로 받아 표로 정리해 드려요. 원본 파일도 그대로 내려받을 수 있고요.</p>
     </div>
     <div class="feat reveal">
       <div class="k">매일 들여다보게 되는 것</div>
@@ -530,7 +530,7 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   <section class="hero">
     <span class="eyebrow"><span class="pulse"></span>전국 49개 대학 · 전공별 권장과목</span>
     <h1 class="display">가고 싶은 대학이<br/><span class="accent">권하는 과목.</span></h1>
-    <p class="hero-sub">목표한 <b>대학·학과</b>가 고등학교 때 어떤 선택과목을 들어 두길 바라는지 모았어요. 수도권·영남·중부·호남 <b>49개 대학</b>의 전공별 권장·반영 과목입니다.</p>
+    <p class="hero-sub">목표한 <b>대학·학과</b>가 고등학교 때 어떤 과목을 들으면 좋다고 하는지 모았어요. 수도권·영남·중부·호남 <b>49개 대학</b>의 전공별 권장·반영 과목입니다.</p>
   </section>
 
   <details class="surface mysubj" id="mySubj">
@@ -611,17 +611,38 @@ function setMode(mode){
 $('tabName').onclick = () => setMode('name');
 $('tabRegion').onclick = () => setMode('region');
 
-/* ── 최상위 모드: 학교 비교 / 수행평가·내신 / 대학 진학 ── */
+/* ── API 응답 캐시 ── 같은 조회(같은 URL)는 다시 부르지 않고 즉시 보여준다.
+   세션 메모리라 새로고침 전까지 유지. 에러 응답은 캐시하지 않아 재시도 가능. */
+const _apiCache = new Map();
+async function cachedJson(url){
+  if (_apiCache.has(url)) return _apiCache.get(url);
+  const r = await fetch(url);
+  const d = await r.json();
+  if (d && !d.error) _apiCache.set(url, d);
+  return d;
+}
+
+/* ── 최상위 모드: 학교 비교 / 수행평가·내신 / 대학 진학 ──
+   탭별 결과(#results·#output)를 저장해 두고, 다른 탭 갔다 와도 그대로 복원한다.
+   클릭 핸들러가 document 위임이라 innerHTML 복원만으로 버튼이 그대로 동작. */
+let _curView = null;
+const _viewOut = {};
 function setView(v){
   const views = {compare:'viewCompare', school:'viewSchool', uni:'viewUni'};
   const tabs  = {compare:'mvCompare',   school:'mvSchool',   uni:'mvUni'};
   if (!views[v]) v = 'school';
+  // 떠나는 뷰의 출력 보존 (uni는 자체 #admOut 사용 → 제외)
+  if (_curView && _curView !== 'uni') _viewOut[_curView] = { r: $('results').innerHTML, o: $('output').innerHTML };
   for (const k in views){
     $(views[k]).classList.toggle('hidden', k !== v);
     $(tabs[k]).setAttribute('aria-selected', String(k === v));
   }
-  // 출력영역은 모든 뷰 공용 → 탭을 넘기면 이전 결과·검색 잔상을 정리
-  $('output').innerHTML=''; $('results').innerHTML='';
+  _curView = v;
+  // 들어가는 뷰의 출력 복원 (없으면 빈 화면)
+  if (v !== 'uni'){
+    const s = _viewOut[v] || { r:'', o:'' };
+    $('results').innerHTML = s.r; $('output').innerHTML = s.o;
+  }
   // 최근 본 학교는 수행평가·내신(school) 맥락에서만 노출
   if (v === 'school') renderRecent(); else { $('recent').classList.add('hidden'); $('recent').innerHTML=''; }
   const hash = v === 'school' ? location.pathname : '#'+v;
@@ -696,10 +717,10 @@ function ctxOf(el){ return {sido:el.getAttribute('data-sido'), sgg:el.getAttribu
 /* ── 이름으로 검색 ── */
 async function findByName(){
   const word = $('qname').value.trim();
-  if (word.length < 2){ $('results').innerHTML = info('학교 이름을 2글자 이상 입력하세요.'); return; }
+  if (word.length < 2){ $('results').innerHTML = info('학교 이름을 2글자 이상 입력해 주세요.'); return; }
   $('results').innerHTML = spinner('전국에서 학교를 찾는 중…'); $('output').innerHTML='';
   try{
-    const r = await fetch('/api/searchName?'+new URLSearchParams({word}));
+    const r = { json: () => cachedJson('/api/searchName?'+new URLSearchParams({word})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     const list = d.schools||[];
@@ -721,7 +742,7 @@ async function findByRegion(){
   if (!sido || !sgg){ $('results').innerHTML = info('시도와 시군구를 선택하세요.'); return; }
   $('results').innerHTML = spinner('학교를 찾는 중…'); $('output').innerHTML='';
   try{
-    const r = await fetch('/api/search?'+new URLSearchParams({sido,sgg,kind,name}));
+    const r = { json: () => cachedJson('/api/search?'+new URLSearchParams({sido,sgg,kind,name})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     const list = d.schools||[];
@@ -813,7 +834,7 @@ function addMyCustom(){
 /* ── 대학 전공별 권장 이수과목 (학교 검색과 독립) ── */
 (async function initAdmission(){
   try{
-    const r = await fetch('/api/admission'); const d = await r.json();
+    const r = { json: () => cachedJson('/api/admission') }; const d = await r.json();
     const dl = $('admUniList');
     if (dl && d.universities) dl.innerHTML = d.universities.map(u => '<option value="'+h(u.name)+'">').join('');
     if (d.subjects){ admSubjects = d.subjects; renderPalette(); }
@@ -848,7 +869,7 @@ function coverage(text){
 function renderAdmission(d){
   lastAdm = d;
   if (!d.majors || !d.majors.length){
-    $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력해 전체를 보세요.'); return;
+    $('admOut').innerHTML = info('"'+h(d.query||'')+'"에 해당하는 학과를 찾지 못했어요. 학과명을 바꾸거나 대학만 입력하면 전체를 볼 수 있어요.'); return;
   }
   const src = safeUrl(d.sourceUrl);
   const loc = [d.region, d.area].filter(Boolean).join(' · ');
@@ -875,10 +896,10 @@ function renderAdmission(d){
 async function loadAdmission(){
   const university = $('admUni').value.trim();
   const major = $('admMajor').value.trim();
-  if (!university){ $('admOut').innerHTML = info('대학명을 입력하세요. (예: 서울대, 연세대)'); return; }
+  if (!university){ $('admOut').innerHTML = info('대학명을 입력해 주세요. (예: 서울대, 연세대)'); return; }
   $('admOut').innerHTML = spinner('권장 이수과목을 찾는 중…');
   try{
-    const r = await fetch('/api/admission?'+new URLSearchParams({university, major}));
+    const r = { json: () => cachedJson('/api/admission?'+new URLSearchParams({university, major})) };
     const d = await r.json();
     if (d.error){
       const have = (d.universities||[]).map(u => u.name).join(', ');
@@ -936,7 +957,7 @@ async function openHomepage(ctx, btn){
   const prev = btn ? btn.textContent : '';
   if (btn) btn.textContent = '🌐 여는 중…';
   try{
-    const r = await fetch('/api/search?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/search?'+qp(ctx)) };
     const d = await r.json();
     const list = d.schools||[];
     const s = list.find(x => x.name===ctx.name) || list[0];
@@ -971,7 +992,7 @@ async function loadEval(ctx, seq, year){
   $('output').innerHTML = spinner('📋 '+h(ctx.name)+' '+what+' 가져오는 중… (다운로드+변환, 5~10초)');
   try{
     const extra = {}; if (seq) extra.seq = seq; if (year) extra.year = year;
-    const r = await fetch('/api/evaluation?'+qp(ctx, extra));
+    const r = { json: () => cachedJson('/api/evaluation?'+qp(ctx, extra)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     if (d.mode === 'list'){
@@ -1092,10 +1113,10 @@ function renderStructured(ctx, d){
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }
 async function loadAllEval(ctx, year){
-  $('output').innerHTML = spinner('📚 '+h(ctx.name)+' 전체 과목을 가져오는 중… (과목 수만큼 시간이 걸려요)');
+  $('output').innerHTML = spinner('📚 '+h(ctx.name)+' 전체 과목을 가져오는 중… (과목이 많으면 시간이 좀 걸려요)');
   try{
     const extra = {all:'1'}; if (year) extra.year = year;
-    const r = await fetch('/api/evaluation?'+qp(ctx, extra));
+    const r = { json: () => cachedJson('/api/evaluation?'+qp(ctx, extra)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year));
@@ -1105,7 +1126,7 @@ async function loadAllEval(ctx, year){
 async function loadSchedule(ctx){
   $('output').innerHTML = spinner('🗓 '+h(ctx.name)+' 학사일정을 가져오는 중…');
   try{
-    const r = await fetch('/api/schedule?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/schedule?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderSchedule(d);
@@ -1160,7 +1181,7 @@ function alStr(arr){ return (arr||[]).map(n=>ALLERGEN_NM[n]||('?'+n)).join('·')
 async function loadMeal(ctx){
   $('output').innerHTML = spinner('🍚 '+h(ctx.name)+' 급식을 가져오는 중…');
   try{
-    const r = await fetch('/api/meal?'+qp(ctx, {days:'7'}));
+    const r = { json: () => cachedJson('/api/meal?'+qp(ctx, {days:'7'})) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderMeal(ctx, d);
@@ -1170,7 +1191,7 @@ async function loadMeal(ctx){
 async function loadWeek(ctx){
   $('output').innerHTML = spinner('📅 '+h(ctx.name)+' 이번주 브리핑을 가져오는 중…');
   try{
-    const r = await fetch('/api/week?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/week?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📅 '+h(d.school||ctx.name)+' 이번주', d.markdown, '');
@@ -1222,7 +1243,7 @@ function renderMeal(ctx, d){
 async function loadCompare(ctx){
   $('output').innerHTML = spinner('🏫 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학생수를 비교하는 중…');
   try{
-    const r = await fetch('/api/compare?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/compare?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     renderCompare(ctx, d);
@@ -1271,7 +1292,7 @@ function renderCompare(ctx, d){
 async function loadReport(ctx){
   $('output').innerHTML = spinner('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 학교를 비교하는 중…');
   try{
-    const r = await fetch('/api/report?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/report?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📋 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 비교', d.markdown || (d.note||'표시할 학교가 없습니다.'), '');
@@ -1281,7 +1302,7 @@ async function loadReport(ctx){
 async function loadExams(ctx){
   $('output').innerHTML = spinner('📝 '+h(ctx.sgg||'')+' '+h(ctx.kind||'')+' 시험 일정을 모으는 중… (여러 학교라 조금 걸려요)');
   try{
-    const r = await fetch('/api/exams?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/exams?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📝 '+h(ctx.sgg||'')+' 시험 캘린더', d.markdown || (d.note||'표시할 시험 일정이 없습니다.'), '');
@@ -1291,7 +1312,7 @@ async function loadExams(ctx){
 async function loadDigest(ctx){
   $('output').innerHTML = spinner('📊 '+h(ctx.name)+' 공시정보를 가져오는 중…');
   try{
-    const r = await fetch('/api/digest?'+qp(ctx));
+    const r = { json: () => cachedJson('/api/digest?'+qp(ctx)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     render('📊 '+h(d.school)+' 핵심 공시', d.markdown, '');

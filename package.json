@@ -1,6 +1,6 @@
 {
   "name": "schoolinfo-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "학교알리미(schoolinfo.go.kr) 공시정보 MCP 서버 + CLI — 학교 비교·수행평가·공시를 학부모가 쓸 수 있게. 흩어진 학교알리미를 한 표로",
   "type": "module",
   "bin": {

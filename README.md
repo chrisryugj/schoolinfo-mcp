@@ -29,7 +29,7 @@
 
 브라우저만 있으면 됩니다. 아래 주소로 접속하세요:
 
-### 👉 **https://school-mcp.fly.dev**
+### 👉 웹앱은 잠정 중단 (MCP는 `https://mcp.gomdori.app/school`에서 계속 제공)
 
 1. **학교 이름만 입력** (예: "자양중") → `학교 찾기`
    *(지역을 몰라도 됩니다. 전국에서 바로 찾아줘요. 시도/시군구로 좁혀 찾고 싶으면 `지역으로 검색` 탭.)*
@@ -63,14 +63,14 @@
   "mcpServers": {
     "schoolinfo": {
       "type": "streamable-http",
-      "url": "https://school-mcp.fly.dev/mcp"
+      "url": "https://mcp.gomdori.app/school"
     }
   }
 }
 ```
 
 > URL **한 줄**이면 끝. 재시작하면 도구가 활성화됩니다. (Streamable HTTP, stateless — 세션 관리 없음)
-> 클라이언트가 원격 MCP를 지원하지 않으면 `npx mcp-remote https://school-mcp.fly.dev/mcp`로 브리지하세요.
+> 클라이언트가 원격 MCP를 지원하지 않으면 `npx mcp-remote https://mcp.gomdori.app/school`로 브리지하세요.
 
 ### 방법 B — 로컬 설치 (직접 구동, 인증키 필요)
 
@@ -218,7 +218,7 @@ NEIS_API_KEY=발급받은_NEIS_인증키   # 학사일정 기능용(선택) — 
 
 > `NEIS_API_KEY`는 급식·학사일정·이번주 브리핑(`get_school_meal`·`get_school_schedule`·`get_school_week`)에 쓰입니다. 없어도 나머지 공시 기능은 정상 동작합니다.
 
-> 웹앱(위 https://school-mcp.fly.dev)을 쓰면 **이 단계가 필요 없습니다.**
+> (웹앱은 잠정 중단 상태입니다)
 
 ### 명령어 (실제 동작 예시)
 

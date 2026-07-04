@@ -4,6 +4,7 @@
 // 학부모가 브라우저에서 학교 검색 → 공시/수행평가 계획을 바로 확인.
 
 import http from "http";
+import { pathToFileURL } from "url";
 import { readFileSync } from "fs";
 import { createClient, formatSchool, formatDisclosure, getParentDigest, getAreaStudents, getAreaReport, formatAreaReport, REGIONS, searchSchoolsByName, resolveSido } from "./index.js";
 import { SCHOOL_KIND, SchoolKindName } from "./codes.js";
@@ -145,7 +146,7 @@ function contentTypeFor(name: string): string {
   }
 }
 
-const server = http.createServer(async (req, res) => {
+export async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
   // monotonic-ish clock — Date.now는 rate limit 용도로만
   const now = Date.now();
   try {
@@ -533,9 +534,14 @@ const server = http.createServer(async (req, res) => {
     if (res.headersSent) return res.end();
     json(res, 500, { error: "일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요." });
   }
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`schoolinfo 웹앱: http://localhost:${PORT}`);
-  if (!process.env.SCHOOLINFO_API_KEY) console.warn("⚠️ SCHOOLINFO_API_KEY 미설정 — API 비활성");
-});
+const server = http.createServer(handleRequest);
+
+// fly 등에서 이 파일을 직접 실행할 때만 리슨. Vercel처럼 handleRequest만 import하는 환경에선 스킵.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(PORT, () => {
+    console.log(`schoolinfo 웹앱: http://localhost:${PORT}`);
+    if (!process.env.SCHOOLINFO_API_KEY) console.warn("⚠️ SCHOOLINFO_API_KEY 미설정 — API 비활성");
+  });
+}

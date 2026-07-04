@@ -4,6 +4,7 @@
 
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
+[![web](https://img.shields.io/badge/웹앱-school.gomdori.app-black.svg)](https://school.gomdori.app)
 
 > *학교알리미는 정보가 다 있는데, 막상 찾으려면 어디 있는지 모릅니다.*
 > *특히 **수행평가 계획**은 hwp 첨부파일 속에 숨어 있어 학부모가 열어보기도 어렵습니다.*
@@ -29,7 +30,7 @@
 
 브라우저만 있으면 됩니다. 아래 주소로 접속하세요:
 
-### 👉 웹앱은 잠정 중단 (MCP는 `https://mcp.gomdori.app/school`에서 계속 제공)
+### 👉 https://school.gomdori.app
 
 1. **학교 이름만 입력** (예: "자양중") → `학교 찾기`
    *(지역을 몰라도 됩니다. 전국에서 바로 찾아줘요. 시도/시군구로 좁혀 찾고 싶으면 `지역으로 검색` 탭.)*
@@ -218,8 +219,6 @@ NEIS_API_KEY=발급받은_NEIS_인증키   # 학사일정 기능용(선택) — 
 
 > `NEIS_API_KEY`는 급식·학사일정·이번주 브리핑(`get_school_meal`·`get_school_schedule`·`get_school_week`)에 쓰입니다. 없어도 나머지 공시 기능은 정상 동작합니다.
 
-> (웹앱은 잠정 중단 상태입니다)
-
 ### 명령어 (실제 동작 예시)
 
 아래는 실제로 실행한 출력입니다.
@@ -341,17 +340,18 @@ schtasks /create /tn "학교알리미체크" /sc daily /st 08:00 ^
 
 ## 🚀 직접 배포하기 (선택)
 
-웹앱을 본인 계정으로 띄우고 싶다면 (fly.io 무료 티어로 충분):
+공식 웹앱은 **[school.gomdori.app](https://school.gomdori.app)** — Vercel에 배포돼 있습니다. 레포에 `vercel.json`이 포함돼 본인 Vercel 계정에도 띄울 수 있습니다:
 
 ```bash
-fly auth login                              # 최초 1회 (브라우저 로그인)
-fly launch --no-deploy                      # 앱 생성 (fly.toml 자동 인식)
-fly secrets set SCHOOLINFO_API_KEY=발급키   # 인증키를 secret으로 안전하게 주입
-fly deploy                                  # 배포
+vercel link                                              # 프로젝트 연결
+echo "발급키"  | vercel env add SCHOOLINFO_API_KEY production
+echo "NEIS키"  | vercel env add NEIS_API_KEY production  # 학사일정용(선택)
+vercel build --prod && vercel deploy --prebuilt --prod   # 로컬 빌드 후 업로드
 ```
 
-배포 후 `https://<앱이름>.fly.dev`에서 시도/시군구/학교명 선택 → 끝.
-hwp/hwpx/pdf 파싱은 순수 JS라 Chromium 같은 무거운 의존성이 없어 **512MB 머신으로도 충분**합니다.
+> 이 패키지는 npm 라이브러리(`main`)를 겸하므로, Vercel이 라이브러리 진입점을 서버 함수로 오인하지 않도록 `vercel.json`에서 `framework: null` + `api/index.ts` 단일 함수로 고정하고, `vercel build → deploy --prebuilt`로 로컬 빌드 산출물을 업로드합니다.
+
+hwp/hwpx/pdf 파싱은 순수 JS(Chromium 불필요)라 서버리스 함수로 충분합니다. fly.io 등 일반 Node 호스트에는 `node dist/server.js`로도 그대로 띄울 수 있습니다(같은 `handleRequest` 공용).
 
 ---
 
@@ -388,18 +388,18 @@ NEIS 개방포털 ──────┘─→ 학사일정 (시험·방학 등)
 | `src/evaluation.ts` | **평가계획 hwp 자동 다운로드** + kordoc 파싱·수행평가 추출 |
 | `src/neis.ts` | **NEIS 학사일정** 조회 (학교코드 해석·동명이교 구분·월별 포맷) |
 | `src/lib/` | 공통 인프라 — `fetch-with-retry`(재시도·타임아웃·키마스킹), `cache`(LRU+TTL) |
-| `src/regions.json` | 17개 시도·시군구 행정코드 |
+| `src/regions.json` | 시도·시군구 행정코드 (2026 개편 반영 — 전남광주통합특별시·인천 신설구·화성 분구, 과도기 구·신 명칭 병행) |
 | `src/labels.json` | 35종 공시항목 컬럼ID→한글 라벨 |
 | `src/mcpServer.ts` | MCP 도구 정의 (stdio·원격 HTTP 공용 `buildMcpServer`) |
 | `src/mcp.ts` | MCP 서버 stdio 런처 |
 | `src/cli.ts` | CLI + 변경감지 알림 |
-| `src/server.ts` + `src/web.ts` | 웹앱 HTTP 서버 + 단일 페이지 UI + **원격 MCP `/mcp`** (fly 배포) |
+| `src/server.ts` + `src/web.ts` | 웹앱 HTTP 서버 + 단일 페이지 UI + **원격 MCP `/mcp`** — `handleRequest`가 Vercel(`api/index.ts`)·fly(`node dist/server.js`) 공용 |
 
 ---
 
 ## 🔒 보안
 
-- 인증키는 코드/저장소가 아니라 **환경변수·fly secret**으로만 주입
+- 인증키는 코드/저장소가 아니라 **환경변수·Vercel env·fly secret**으로만 주입
 - 외부(공공API·공문서) 데이터를 DOM에 넣을 때 **XSS 이스케이프 + DOMPurify + CSP** 3중 방어
 - 파일 다운로드 50MB / 파싱 200MB 상한, 외부 요청 타임아웃, 경로 순회 차단
 - 원본 다운로드는 파일명 정제 + `Content-Disposition` RFC5987 인코딩(헤더 인젝션 차단)

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "echo 'no build — @vercel/node가 api/index.ts와 src TS import를 직접 번들'",
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.ts": { "maxDuration": 60, "includeFiles": "og.png" }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index?__vpath=/$1" }
+  ]
+}

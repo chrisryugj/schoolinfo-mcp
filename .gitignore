@@ -17,3 +17,5 @@ dbg*.mjs
 __pycache__/
 *.py[cod]
 shots/
+.vercel
+.env*

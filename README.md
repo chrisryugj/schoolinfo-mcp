@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/chrisryugj-schoolinfo-mcp-badge.png)](https://mseep.ai/app/chrisryugj-schoolinfo-mcp)
+
 # 우리학교 알리미 (schoolinfo-mcp)
 
 **내 아이 학교, 검색하지 말고 물어보세요.**

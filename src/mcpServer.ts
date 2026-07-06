@@ -27,6 +27,8 @@ import {
   parseEvaluationDocument,
   autoFetchEvaluation,
   listEvaluationDocs,
+  EVAL_ITEM_SPEC,
+  CURRICULUM_ITEM_SPEC,
 } from "./evaluation.js";
 import {
   findAdmissionUniversity,
@@ -428,11 +430,13 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
       kind: z.enum(KINDS),
       name: z.string().describe("학교명"),
       year: z.number().optional().describe("공시연도 (기본: 올해)"),
+      semester: z.union([z.literal(1), z.literal(2)]).optional()
+        .describe("1(1학기)|2(2학기) — 자료제출일(회차) 기준으로 해당 학기 자료를 찾음. 미지정 시 최신 제출분(보통 1학기)."),
       subject: z.string().optional().describe("과목/파일명 키워드 (과목별로 나뉜 학교에서 특정 과목 선택)"),
       all: z.boolean().optional().describe("true면 전체 과목 파일을 모두 조회"),
       full: z.boolean().optional().describe("true면 전체 문서, 기본은 수행평가 섹션 위주"),
     },
-    async ({ sido, sgg, kind, name, year, subject, all, full }) => {
+    async ({ sido, sgg, kind, name, year, semester, subject, all, full }) => {
       try {
         const client = getClient();
         const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
@@ -440,18 +444,22 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
 
         // 과목별로 나뉜 학교는 목록을 먼저 안내 (subject/all 미지정 시)
-        const { docs } = await listEvaluationDocs(school, year);
+        const { docs, year: usedYear, chasu, rounds } = await listEvaluationDocs(school, year, EVAL_ITEM_SPEC, semester);
+        const roundNote = chasu != null
+          ? `\n> 자료제출일: ${rounds.find((r) => r.year === usedYear && r.chasu === chasu)?.label ?? `${usedYear}년 ${chasu}차`}`
+          : "";
         if (docs.length > 1 && !subject && !all) {
           const lines = docs.map((d) => `- ${d.filename}${d.sizeKB ? ` (${d.sizeKB}KB)` : ""}`);
           return ok(
-            `# ${school.name} — 평가계획 파일이 ${docs.length}개 있습니다 (과목별)\n\n` +
+            `# ${school.name} — 평가계획 파일이 ${docs.length}개 있습니다 (과목별)${roundNote}\n\n` +
               lines.join("\n") +
-              `\n\n특정 과목은 subject="국어"처럼, 전체는 all=true로 다시 요청하세요.`
+              `\n\n특정 과목은 subject="국어"처럼, 전체는 all=true로 다시 요청하세요.` +
+              (semester == null ? `\n다른 학기는 semester=1 또는 semester=2로 요청하세요.` : "")
           );
         }
         const seq = subject ? docs.find((d) => d.filename.includes(subject))?.seq : undefined;
-        const results = await autoFetchEvaluation(school, year, { all: !!all, seq });
-        const parts: string[] = [`# ${school.name} — 교수·학습 및 평가 운영 계획\n`];
+        const results = await autoFetchEvaluation(school, year, { all: !!all, seq, semester });
+        const parts: string[] = [`# ${school.name} — 교수·학습 및 평가 운영 계획${roundNote}\n`];
         for (const r of results) {
           parts.push(`## 📄 ${r.filename} (${r.fileType})\n`);
           if (r.evaluationSections.length) {
@@ -468,6 +476,68 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
         return ok(parts.join("\n"));
       } catch (e: any) {
         // 자동 다운로드 실패 시 수동 안내로 폴백
+        try {
+          const client = getClient();
+          const { school } = await resolveSchool(client, sido, sgg, kind, name);
+          if (school) return ok(`⚠️ 자동 조회 실패: ${e.message}\n\n` + evaluationGuide(school, year));
+        } catch {}
+        return err(`오류: ${e.message}`);
+      }
+    }
+  );
+
+  // ─── 5-2. 교육과정 편제표(2-가) 자동 조회 ────────────────
+  server.tool(
+    "get_curriculum_plan",
+    "학교의 '학교교육과정 편성·운영 및 평가에 관한 사항'(2-가) 첨부문서를 학교알리미에서 자동으로 내려받아 마크다운으로 변환하고 교육과정 편제표(교과(군)별 이수단위/시간 배당)를 추출합니다. 특정 학년도 입학생 기준 편제는 year에 그 입학연도를 지정하세요.",
+    {
+      sido: z.string(),
+      sgg: z.string(),
+      kind: z.enum(KINDS),
+      name: z.string().describe("학교명"),
+      year: z.number().optional().describe("공시연도/입학연도 (기본: 올해)"),
+      subject: z.string().optional().describe("파일명 키워드 (한 항목에 파일이 여러 개일 때 특정 문서 선택)"),
+      all: z.boolean().optional().describe("true면 항목의 전체 첨부파일을 모두 조회"),
+      full: z.boolean().optional().describe("true면 전체 문서, 기본은 편제 관련 섹션 위주"),
+    },
+    async ({ sido, sgg, kind, name, year, subject, all, full }) => {
+      try {
+        const client = getClient();
+        const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
+        if (many) return ok(`여러 학교가 검색됨:\n` + many.map((s) => `- ${s.name}`).join("\n"));
+        if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
+
+        // 2-가 항목엔 편제표 + 연간학사일정이 섞여 올라오므로, 목록을 나열하기보다
+        // 점수(curriculumScore)로 편제표 문서를 자동 선택한다. (subject/all로 수동 지정 가능)
+        const { docs } = await listEvaluationDocs(school, year, CURRICULUM_ITEM_SPEC);
+        const seq = subject ? docs.find((d) => d.filename.includes(subject))?.seq : undefined;
+        if (subject && !seq) return ok(`"${subject}"에 해당하는 파일을 찾을 수 없습니다. 파일 목록:\n` + docs.map((d) => `- ${d.filename}`).join("\n"));
+        const results = await autoFetchEvaluation(school, year, { all: !!all, seq }, CURRICULUM_ITEM_SPEC);
+        const parts: string[] = [`# ${school.name} — 학교교육과정 편성·운영 및 평가\n`];
+        for (const r of results) {
+          parts.push(`## 📄 ${r.filename} (${r.fileType})\n`);
+          if (r.evaluationSections.length) {
+            parts.push(`### 🎯 교육과정 편제 관련 (${r.evaluationSections.length}개)\n`);
+            parts.push(r.evaluationSections.join("\n\n---\n\n"));
+          }
+          if (r.needsOcr) {
+            parts.push(`\n> ⚠️ 본문 추출이 빈약합니다(이미지 PDF 추정). 원본 직접 확인을 권장합니다.\n`, evaluationGuide(school, year));
+          }
+          if (full || !r.evaluationSections.length) {
+            parts.push(`\n### 전체 문서\n`, r.markdown);
+          }
+        }
+        // 편제표 외 파일(연간학사일정 등)이 더 있으면 안내
+        if (!all && !subject && docs.length > 1) {
+          parts.push(
+            `\n---\n> 이 항목엔 첨부파일이 ${docs.length}개 있어 편제표로 추정되는 문서를 자동 선택했습니다.\n` +
+              `> 전체 목록:\n` + docs.map((d) => `> - ${d.filename}${d.sizeKB ? ` (${d.sizeKB}KB)` : ""}`).join("\n") +
+              `\n> 다른 파일은 subject="키워드", 전체는 all=true로 요청하세요.`
+          );
+        }
+        return ok(parts.join("\n"));
+      } catch (e: any) {
+        // 자동 조회 실패 시 수동 안내로 폴백
         try {
           const client = getClient();
           const { school } = await resolveSchool(client, sido, sgg, kind, name);

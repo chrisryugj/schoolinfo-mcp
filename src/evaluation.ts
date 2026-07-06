@@ -34,16 +34,50 @@ async function fetchT(url: string, init: RequestInit = {}, timeout = FETCH_TIMEO
   return fetchWithRetry(url, init, { timeout, label: "학교알리미" });
 }
 
-// "교과별(학년별) 교수·학습 및 평가계획에 관한 사항" 공시항목 고정 코드
-// (학교알리미 공시항목 자체의 분류 코드 — 모든 학교 공통)
-const EVAL_ITEM = {
-  GS_HANGMOK_CD: "43",
-  GS_HANGMOK_NO: "4-가",
-  GS_HANGMOK_NM: "교과별(학년별) 교수ㆍ학습 및 평가계획에 관한 사항",
-  GS_BURYU_CD: "JG110",
-  JG_BURYU_CD: "JG040",
-  JG_HANGMOK_CD: "14",
-  JG_GUBUN: "1",
+/**
+ * 공시항목별 첨부파일 다운로드 명세.
+ * 다운로드 메커니즘(POST b페이지 → 첨부목록 → EiFileDownLoad.do → kordoc)은 동일하고
+ * **항목 코드/엔드포인트만** 항목마다 다르다 (코드는 학교알리미 공시항목 분류 — 전국·전학교급 공통).
+ */
+export interface DisclosureItemSpec {
+  /** 항목 조회 POST 엔드포인트 (/ei/pp/ 하위). 엔드포인트 번호 = GS_HANGMOK_CD */
+  endpoint: string;
+  /** 공시항목 고정 코드 (POST body + 다운로드 파라미터 폴백) */
+  codes: {
+    GS_HANGMOK_CD: string; GS_HANGMOK_NO: string; GS_HANGMOK_NM: string;
+    GS_BURYU_CD: string; JG_BURYU_CD: string; JG_HANGMOK_CD: string; JG_GUBUN: string;
+  };
+  /** 첨부파일 우선순위 점수 (낮을수록 우선) — 한 항목에 파일이 여럿일 때 본문 파일 선별 */
+  score: (filename: string) => number;
+  /** 변환 마크다운에서 뽑아낼 관심 섹션 키워드 */
+  sectionKeywords: string[];
+}
+
+const EVAL_SECTION_KEYWORDS = ["수행평가", "평가기준", "평가요소", "평가방법", "평가영역", "반영비율", "평가시기", "성취기준", "지필", "정기시험"];
+const CURRICULUM_SECTION_KEYWORDS = ["편제", "이수단위", "이수 단위", "단위 배당", "학점 배당", "시간 배당", "교과(군)", "창의적 체험활동", "학년군", "기준 단위"];
+
+/** 4-가. 교과별(학년별) 교수·학습 및 평가 운영 계획 (= 수행평가 주제·평가기준) */
+export const EVAL_ITEM_SPEC: DisclosureItemSpec = {
+  endpoint: "Pneipp_b43_s0p.do",
+  codes: {
+    GS_HANGMOK_CD: "43", GS_HANGMOK_NO: "4-가",
+    GS_HANGMOK_NM: "교과별(학년별) 교수ㆍ학습 및 평가계획에 관한 사항",
+    GS_BURYU_CD: "JG110", JG_BURYU_CD: "JG040", JG_HANGMOK_CD: "14", JG_GUBUN: "1",
+  },
+  score: evalScore,
+  sectionKeywords: EVAL_SECTION_KEYWORDS,
+};
+
+/** 2-가. 학교교육과정 편성·운영 및 평가에 관한 사항 (= 교육과정 편제표) */
+export const CURRICULUM_ITEM_SPEC: DisclosureItemSpec = {
+  endpoint: "Pneipp_b14_s0p.do",
+  codes: {
+    GS_HANGMOK_CD: "14", GS_HANGMOK_NO: "2-가",
+    GS_HANGMOK_NM: "학교교육과정 편성ㆍ운영 및 평가에 관한 사항",
+    GS_BURYU_CD: "JG100", JG_BURYU_CD: "JG020", JG_HANGMOK_CD: "05", JG_GUBUN: "1",
+  },
+  score: curriculumScore,
+  sectionKeywords: CURRICULUM_SECTION_KEYWORDS,
 };
 
 export interface EvaluationFile {
@@ -52,15 +86,43 @@ export interface EvaluationFile {
   sizeKB?: number;
 }
 
+/**
+ * 학교알리미 "자료제출일" 드롭다운(#select_trans_dt)의 한 항목 — 실제 제출 회차.
+ * value="{JG_YEAR}{JG_CHASU}" 형태(예: "20253" = 2025년 3차)를 그대로 분해한 것.
+ * 관찰상 1차=4월(1학기), 3차=9월(2학기) 패턴이나, 학교/연도별 예외 가능성을 감안해
+ * "그 해 최소 chasu=1학기, 최대 chasu=2학기"로 일반화해 판단한다 (하드코딩 1/3 지양).
+ */
+export interface SubmissionRound {
+  year: number;
+  chasu: number;
+  label: string; // 예: "(3차) 2025년 09월"
+  selected: boolean;
+}
+
+/** #select_trans_dt 드롭다운에서 제출 회차 목록을 파싱한다 */
+function parseSubmissionRounds(html: string): SubmissionRound[] {
+  const sel = html.match(/<select[^>]*id="select_trans_dt"[^>]*>([\s\S]*?)<\/select>/i);
+  if (!sel) return [];
+  const rounds: SubmissionRound[] = [];
+  const re = /<option\s+value="(\d{4})(\d+)"\s*(selected)?\s*>\s*([^<]*)<\/option>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sel[1]))) {
+    rounds.push({ year: Number(m[1]), chasu: Number(m[2]), label: m[4].trim(), selected: !!m[3] });
+  }
+  return rounds;
+}
+
 /** 평가계획 첨부파일 목록 + 다운로드 파라미터 조회 (POST b43) */
 export async function fetchEvaluationFiles(
   shlIdfCd: string,
   schoolName: string,
-  year = new Date().getFullYear()
-): Promise<{ files: EvaluationFile[]; downloadParams: Record<string, string> }> {
+  year = new Date().getFullYear(),
+  spec: DisclosureItemSpec = EVAL_ITEM_SPEC,
+  chasu?: number
+): Promise<{ files: EvaluationFile[]; downloadParams: Record<string, string>; rounds: SubmissionRound[] }> {
   if (!shlIdfCd) throw new Error("학교고유식별코드(SHL_IDF_CD)가 없습니다.");
   const body = new URLSearchParams({
-    ...EVAL_ITEM,
+    ...spec.codes,
     HG_NM: schoolName,
     SHL_IDF_CD: shlIdfCd,
     GS_TYPE: "Y",
@@ -70,8 +132,10 @@ export async function fetchEvaluationFiles(
     PRE_JG_YEAR: String(year),
     LOAD_TYPE: "single",
   });
+  // 회차(학기) 미지정 시 서버가 최신 제출분을 기본으로 준다 — 특정 학기가 필요하면 명시해야 함.
+  if (chasu != null) body.set("JG_CHASU", String(chasu));
 
-  const res = await fetchT(`${BASE}/ei/pp/Pneipp_b43_s0p.do`, {
+  const res = await fetchT(`${BASE}/ei/pp/${spec.endpoint}`, {
     method: "POST",
     headers: {
       "User-Agent": UA,
@@ -89,9 +153,13 @@ export async function fetchEvaluationFiles(
   // 첨부파일 목록: getEiFile43('N') + 파일명.확장자(NN KB)
   const files = parseFileList(html);
   // 다운로드 폼 파라미터 (eiFileDownForm hidden)
-  const downloadParams = parseDownloadParams(html, shlIdfCd, year);
+  const downloadParams = parseDownloadParams(html, shlIdfCd, year, spec);
+  // 자료제출일(회차) 드롭다운 — 몇 차까지 제출됐는지, 어느 회차가 1/2학기인지 판단용
+  const rounds = parseSubmissionRounds(html);
+  // 실제 반영된 회차값으로 다운로드 파라미터 보정 (요청한 chasu가 있으면 그걸로 확정)
+  if (chasu != null) downloadParams.JG_CHASU = String(chasu);
 
-  return { files, downloadParams };
+  return { files, downloadParams, rounds };
 }
 
 function parseFileList(html: string): EvaluationFile[] {
@@ -99,9 +167,10 @@ function parseFileList(html: string): EvaluationFile[] {
   const seen = new Set<string>();
   // <a ... onclick="getEiFile43('5')...">파일명.hwpx(89 KB)</a>
   // 파일명에 괄호가 있을 수 있으므로 앵커(>)와 종료(<) 사이 전체를 잡고, 크기 표기는 선택적.
-  // onclick 따옴표(작은/큰), getEiFile43 인자 공백·따옴표 유무를 모두 허용 (HTML 변형 견고화).
+  // 핸들러명은 항목마다 다르다(4-가=getEiFile43, 2-가=getEiFile14)므로 getEiFile\d*로 일반화.
+  // onclick 따옴표(작은/큰), 인자 공백·따옴표 유무를 모두 허용 (HTML 변형 견고화).
   const re =
-    /onclick=["'][^"']*getEiFile43\(\s*['"]?(\d+)['"]?\s*\)[^"']*["'][^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi;
+    /onclick=["'][^"']*getEiFile\d*\(\s*['"]?(\d+)['"]?\s*\)[^"']*["'][^>]*>\s*([^<]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
     if (seen.has(m[1])) continue;
@@ -110,7 +179,7 @@ function parseFileList(html: string): EvaluationFile[] {
   }
   // 폴백: 순서 기반 매칭 (onclick과 파일명이 분리된 비표준 구조)
   if (files.length === 0) {
-    const seqs = [...html.matchAll(/getEiFile43\(\s*['"]?(\d+)['"]?\s*\)/g)].map((x) => x[1]);
+    const seqs = [...html.matchAll(/getEiFile\d*\(\s*['"]?(\d+)['"]?\s*\)/g)].map((x) => x[1]);
     const names = [...html.matchAll(/([^>\s][^<>]*?\.(?:hwpx|hwp|pdf|docx|xlsx))\s*(?:\(\s*([\d.,]+)\s*([KM]B)\s*\))?/gi)];
     // 개수가 일치할 때만 신뢰 (어긋나면 seq↔파일명 뒤바뀜 위험)
     if (seqs.length === names.length) {
@@ -136,7 +205,8 @@ function toKB(num?: string, unit?: string): number | undefined {
 function parseDownloadParams(
   html: string,
   shlIdfCd: string,
-  year: number
+  year: number,
+  spec: DisclosureItemSpec
 ): Record<string, string> {
   const params: Record<string, string> = {};
   const formIdx = html.indexOf("eiFileDownForm");
@@ -154,9 +224,9 @@ function parseDownloadParams(
   }
   // 필수값 보강
   params.SHL_IDF_CD ??= shlIdfCd;
-  params.JG_BURYU_CD ??= EVAL_ITEM.JG_BURYU_CD;
-  params.JG_HANGMOK_CD ??= EVAL_ITEM.JG_HANGMOK_CD;
-  params.JG_GUBUN ??= EVAL_ITEM.JG_GUBUN;
+  params.JG_BURYU_CD ??= spec.codes.JG_BURYU_CD;
+  params.JG_HANGMOK_CD ??= spec.codes.JG_HANGMOK_CD;
+  params.JG_GUBUN ??= spec.codes.JG_GUBUN;
   params.JG_YEAR ??= String(year);
   params.JG_CHASU ??= "1";
   params.PRE_JG_YEAR ??= String(year);
@@ -166,12 +236,13 @@ function parseDownloadParams(
 /** 특정 첨부파일 다운로드 (GET EiFileDownLoad) */
 export async function downloadEvaluationFile(
   downloadParams: Record<string, string>,
-  seq: string
+  seq: string,
+  spec: DisclosureItemSpec = EVAL_ITEM_SPEC
 ): Promise<{ buffer: ArrayBuffer; filename: string }> {
   if (!/^\d+$/.test(seq)) throw new Error("잘못된 파일 식별자입니다.");
   const qs = new URLSearchParams({ ...downloadParams, FILE_SEQ: seq });
   const res = await fetchT(`${BASE}/servlets/EiFileDownLoad.do?${qs}`, {
-    headers: { "User-Agent": UA, Referer: `${BASE}/ei/pp/Pneipp_b43_s0p.do` },
+    headers: { "User-Agent": UA, Referer: `${BASE}/ei/pp/${spec.endpoint}` },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} — 파일 다운로드 실패`);
   // 크기 상한 — Content-Length 선검사 + 실제 바이트 재확인
@@ -203,25 +274,65 @@ export interface EvaluationResult {
 }
 
 /**
+ * 같은 해에 제출된 회차들 중 학기를 판단한다.
+ * 관찰된 패턴(1차=4월=1학기, 3차=9월=2학기)을 하드코딩하지 않고,
+ * 그 해의 최소 chasu를 1학기, 최대 chasu를 2학기로 취급한다 — 회차 번호 자체가
+ * 학교/연도마다 다를 수 있어(정정 회차 등) 상대적 순서로 판단하는 편이 안전하다.
+ */
+function roundForSemester(rounds: SubmissionRound[], year: number, semester: 1 | 2): SubmissionRound | undefined {
+  const ofYear = rounds.filter((r) => r.year === year).sort((a, b) => a.chasu - b.chasu);
+  if (!ofYear.length) return undefined;
+  if (semester === 1) return ofYear[0];
+  // 2학기: 그 해에 회차가 2개 이상 있어야 함(1개뿐이면 아직 2학기 자료가 없다는 뜻)
+  return ofYear.length > 1 ? ofYear[ofYear.length - 1] : undefined;
+}
+
+/**
  * 평가계획 첨부파일 목록을 수행평가 관련성 순으로 정렬해 반환한다 (다운로드/파싱 전).
  * 과목별로 쪼개진 학교(과목별 PDF 여러 개)는 목록을 먼저 보여주고 선택하게 하기 위함.
+ *
+ * @param semester 1(1학기) | 2(2학기) 지정 시, 그 학기에 해당하는 제출 회차를 찾아 재조회한다.
+ *   해당 학기 자료가 아직 없으면(예: 연중 2학기 미제출) 명시적으로 에러를 던진다 — 엉뚱한
+ *   학기 자료를 조용히 대신 반환하지 않는다.
  */
 export async function listEvaluationDocs(
   school: School,
-  year?: number
-): Promise<{ docs: EvaluationFile[]; downloadParams: Record<string, string>; year: number }> {
+  year?: number,
+  spec: DisclosureItemSpec = EVAL_ITEM_SPEC,
+  semester?: 1 | 2
+): Promise<{ docs: EvaluationFile[]; downloadParams: Record<string, string>; year: number; chasu?: number; rounds: SubmissionRound[] }> {
   // 연도 미지정 시: 올해 → (연초엔 신학년도 평가계획이 아직 미공시이므로) 작년 순으로 자동 폴백.
   // 사용자가 연도를 명시하면 그 해만 조회 (임의 폴백 금지).
   const thisYear = new Date().getFullYear();
   const candidates = year != null ? [year] : [thisYear, thisYear - 1];
   for (const y of candidates) {
-    const { files, downloadParams } = await fetchEvaluationFiles(school.shlIdfCd, school.name, y);
-    if (files.length) {
-      const docs = files
-        .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
-        .sort((a, b) => evalScore(a.filename) - evalScore(b.filename));
-      return { docs: docs.length ? docs : files, downloadParams, year: y };
+    let { files, downloadParams, rounds } = await fetchEvaluationFiles(school.shlIdfCd, school.name, y, spec);
+    if (!files.length) continue;
+
+    let chasu: number | undefined;
+    if (semester != null) {
+      const target = roundForSemester(rounds, y, semester);
+      if (!target) {
+        // 연도 폴백 없이(임의 학기 대체 금지) 다음 연도 후보로 넘어가되, 마지막까지 못 찾으면 아래에서 에러.
+        if (y === candidates[candidates.length - 1]) {
+          const available = rounds.filter((r) => r.year === y).map((r) => r.label).join(", ") || "없음";
+          throw new Error(
+            `${y}년 ${semester}학기 평가계획 자료가 아직 제출되지 않았습니다. (${y}년 제출 회차: ${available})`
+          );
+        }
+        continue;
+      }
+      chasu = target.chasu;
+      // 이미 그 회차가 기본으로 로드돼 있으면 재요청 생략
+      if (!target.selected) {
+        ({ files, downloadParams, rounds } = await fetchEvaluationFiles(school.shlIdfCd, school.name, y, spec, chasu));
+      }
     }
+
+    const docs = files
+      .filter((f) => /\.(hwpx|hwp|pdf|docx)$/i.test(f.filename))
+      .sort((a, b) => spec.score(a.filename) - spec.score(b.filename));
+    return { docs: docs.length ? docs : files, downloadParams, year: y, chasu, rounds };
   }
   throw new Error(
     `${candidates.join("·")}년도 평가계획 첨부파일을 찾지 못했습니다. (다른 연도를 지정하거나 ${DISCLOSURE_PORTAL} 직접 확인)`
@@ -231,9 +342,10 @@ export async function listEvaluationDocs(
 /** 특정 첨부파일을 다운로드 + kordoc 파싱 */
 export async function fetchEvaluationBySeq(
   downloadParams: Record<string, string>,
-  file: EvaluationFile
+  file: EvaluationFile,
+  spec: DisclosureItemSpec = EVAL_ITEM_SPEC
 ): Promise<EvaluationResult> {
-  const { buffer, filename } = await downloadEvaluationFile(downloadParams, file.seq);
+  const { buffer, filename } = await downloadEvaluationFile(downloadParams, file.seq, spec);
   // filePath를 넘기지 않는다: 다운로드 파일명은 디스크에 없는 가짜 경로라
   // kordoc의 배포용 HWP COM 폴백이 존재하지 않는 파일을 열려 시도할 수 있음.
   // 포맷은 매직바이트로 자동 감지되므로 ArrayBuffer만으로 충분.
@@ -243,7 +355,7 @@ export async function fetchEvaluationBySeq(
     filename: filename || file.filename,
     fileType: parsed.fileType ?? "unknown",
     markdown,
-    evaluationSections: extractEvaluationSections(markdown),
+    evaluationSections: extractEvaluationSections(markdown, spec.sectionKeywords),
   };
 }
 
@@ -252,21 +364,23 @@ export async function fetchEvaluationBySeq(
  * - 기본: 우선순위 1순위 파일 1개
  * - opts.all: 전체 과목 파일
  * - opts.seq: 특정 파일만 (과목 선택)
+ * - opts.semester: 1(1학기)|2(2학기) — 해당 학기 제출 회차로 재조회
  */
 export async function autoFetchEvaluation(
   school: School,
   year?: number,
-  opts: { all?: boolean; seq?: string } = {}
+  opts: { all?: boolean; seq?: string; semester?: 1 | 2 } = {},
+  spec: DisclosureItemSpec = EVAL_ITEM_SPEC
 ): Promise<EvaluationResult[]> {
-  const { docs, downloadParams } = await listEvaluationDocs(school, year);
+  const { docs, downloadParams } = await listEvaluationDocs(school, year, spec, opts.semester);
 
   if (opts.seq) {
     const f = docs.find((d) => d.seq === opts.seq);
-    return f ? [await fetchEvaluationBySeq(downloadParams, f)] : [];
+    return f ? [await fetchEvaluationBySeq(downloadParams, f, spec)] : [];
   }
   if (opts.all) {
     const results: EvaluationResult[] = [];
-    for (const f of docs.slice(0, MAX_ALL_DOCS)) results.push(await fetchEvaluationBySeq(downloadParams, f));
+    for (const f of docs.slice(0, MAX_ALL_DOCS)) results.push(await fetchEvaluationBySeq(downloadParams, f, spec));
     if (docs.length > MAX_ALL_DOCS) {
       results.push({
         filename: `(이하 ${docs.length - MAX_ALL_DOCS}개 파일 생략)`,
@@ -280,7 +394,7 @@ export async function autoFetchEvaluation(
   // 기본: 우선순위대로 시도하되, 이미지 PDF 등으로 내용이 빈약하면 다음 파일로 폴백
   let best: EvaluationResult | null = null;
   for (const f of docs.slice(0, 6)) {
-    const r = await fetchEvaluationBySeq(downloadParams, f);
+    const r = await fetchEvaluationBySeq(downloadParams, f, spec);
     if (r.markdown.trim().length >= MIN_USEFUL_MD) return [r];
     if (!best) best = r;
   }
@@ -293,6 +407,19 @@ export async function autoFetchEvaluation(
 function evalScore(filename: string): number {
   if (/교수.?학습|평가\s*계획|평가\s*운영/.test(filename)) return 0;
   if (/학업성적관리/.test(filename)) return 2;
+  return 1;
+}
+
+/**
+ * 파일명 기반 교육과정 편제표 관련성 점수 (낮을수록 우선).
+ * 2-가 항목엔 '편제표 본문'과 '연간학사일정'이 함께 올라오는 경우가 많아,
+ * 학사일정류를 후순위로 밀고 교육과정/교육계획 문서를 우선 선택한다.
+ * 공백 변형("교육 계획" vs "교육계획서")을 흡수하려 공백을 제거하고 매칭.
+ */
+function curriculumScore(filename: string): number {
+  const n = filename.replace(/\s/g, "");
+  if (/연간학사일정|학사일정/.test(n)) return 3; // 학사 캘린더 — 편제표 아님
+  if (/(학교)?교육과정|교육계획/.test(n)) return 0; // 편제표 본문
   return 1;
 }
 
@@ -326,12 +453,11 @@ export async function parseEvaluationDocument(
 }
 
 /** 마크다운에서 수행평가/평가 관련 구간 추출 */
-export function extractEvaluationSections(markdown: string): string[] {
-  const KEYWORDS = ["수행평가", "평가기준", "평가요소", "평가방법", "평가영역", "반영비율", "평가시기", "성취기준", "지필", "정기시험"];
+export function extractEvaluationSections(markdown: string, keywords: string[] = EVAL_SECTION_KEYWORDS): string[] {
   const blocks = markdown.split(/\n\s*\n/);
   const hits: string[] = [];
   for (const block of blocks) {
-    if (KEYWORDS.some((k) => block.includes(k))) hits.push(block.trim());
+    if (keywords.some((k) => block.includes(k))) hits.push(block.trim());
   }
   return hits;
 }

@@ -411,6 +411,16 @@ function evalScore(filename: string): number {
 }
 
 /**
+ * 파일명에서 학년을 추출한다 (예: "...3학년 전과목...hwp" → 3).
+ * 1~3학년 통합본처럼 학년 표기가 없는 파일(단일 첨부, 전학년 합본)은 null —
+ * 이 경우 학년으로 거를 대상이 없다는 뜻이므로 그대로 통과시켜야 한다.
+ */
+export function gradeInFilename(filename: string): number | null {
+  const m = filename.match(/([1-6])\s*학년/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
  * 파일명 기반 교육과정 편제표 관련성 점수 (낮을수록 우선).
  * 2-가 항목엔 '편제표 본문'과 '연간학사일정'이 함께 올라오는 경우가 많아,
  * 학사일정류를 후순위로 밀고 교육과정/교육계획 문서를 우선 선택한다.

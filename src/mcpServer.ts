@@ -27,8 +27,11 @@ import {
   parseEvaluationDocument,
   autoFetchEvaluation,
   listEvaluationDocs,
+  gradeInFilename,
+  structureEvaluation,
   EVAL_ITEM_SPEC,
   CURRICULUM_ITEM_SPEC,
+  type EvaluationFile,
 } from "./evaluation.js";
 import {
   findAdmissionUniversity,
@@ -432,33 +435,80 @@ export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
       year: z.number().optional().describe("공시연도 (기본: 올해)"),
       semester: z.union([z.literal(1), z.literal(2)]).optional()
         .describe("1(1학기)|2(2학기) — 자료제출일(회차) 기준으로 해당 학기 자료를 찾음. 미지정 시 최신 제출분(보통 1학기)."),
-      subject: z.string().optional().describe("과목/파일명 키워드 (과목별로 나뉜 학교에서 특정 과목 선택)"),
+      subject: z.string().optional().describe("과목명(예: '국어', '공통국어2'). 파일명이 아니라 문서 '내용'에서 해당 과목의 평가표를 찾아 그 부분만 반환한다. 학년·전과목 통합본 학교에서도 동작."),
+      grade: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]).optional()
+        .describe("학년(1~6) — 첨부파일이 학년별로 나뉜 학교(예: '...3학년 전과목...')에서 어느 파일을 받을지 고를 때만 씀. 1~3학년을 한 파일에 합본한 학교엔 파일명에 학년 표기가 없어 영향 없음(어차피 파일이 하나라 그대로 받아옴)."),
       all: z.boolean().optional().describe("true면 전체 과목 파일을 모두 조회"),
       full: z.boolean().optional().describe("true면 전체 문서, 기본은 수행평가 섹션 위주"),
     },
-    async ({ sido, sgg, kind, name, year, semester, subject, all, full }) => {
+    async ({ sido, sgg, kind, name, year, semester, subject, grade, all, full }) => {
       try {
         const client = getClient();
         const { school, many } = await resolveSchool(client, sido, sgg, kind, name);
         if (many) return ok(`여러 학교가 검색됨:\n` + many.map((s) => `- ${s.name}`).join("\n"));
         if (!school) return ok(`학교를 찾을 수 없습니다: ${name}`);
 
-        // 과목별로 나뉜 학교는 목록을 먼저 안내 (subject/all 미지정 시)
         const { docs, year: usedYear, chasu, rounds } = await listEvaluationDocs(school, year, EVAL_ITEM_SPEC, semester);
         const roundNote = chasu != null
           ? `\n> 자료제출일: ${rounds.find((r) => r.year === usedYear && r.chasu === chasu)?.label ?? `${usedYear}년 ${chasu}차`}`
           : "";
-        if (docs.length > 1 && !subject && !all) {
+        // 첨부파일명에는 과목명이 안 들어간다(전과목 통합본이 흔함) — 파일명으로 쓸모 있는
+        // 정보는 (a) 파일이 몇 개인지, (b) 학년 표기뿐이다. 그래서 파일 선택은 grade로만 하고,
+        // 과목(subject)은 파일을 받은 뒤 "내용"에서 찾는다(아래 structureEvaluation).
+        const picked: EvaluationFile | undefined = docs.length > 1
+          ? (grade != null ? docs.find((d) => gradeInFilename(d.filename) === grade) : undefined)
+          : docs[0];
+        if (docs.length > 1 && !all && !picked) {
           const lines = docs.map((d) => `- ${d.filename}${d.sizeKB ? ` (${d.sizeKB}KB)` : ""}`);
+          const hasGradeSplit = docs.some((d) => gradeInFilename(d.filename) != null);
           return ok(
-            `# ${school.name} — 평가계획 파일이 ${docs.length}개 있습니다 (과목별)${roundNote}\n\n` +
+            `# ${school.name} — 평가계획 파일이 ${docs.length}개 있습니다${roundNote}\n\n` +
               lines.join("\n") +
-              `\n\n특정 과목은 subject="국어"처럼, 전체는 all=true로 다시 요청하세요.` +
+              (hasGradeSplit
+                ? `\n\n학년별 파일이 나뉘어 있습니다. grade=1|2|3처럼 지정하세요.`
+                : `\n\n어느 파일인지 특정할 수 없습니다.`) +
+              ` 과목은 grade로 파일을 고른 뒤 subject="국어"처럼 내용에서 찾습니다. 전체는 all=true로 요청하세요.` +
               (semester == null ? `\n다른 학기는 semester=1 또는 semester=2로 요청하세요.` : "")
           );
         }
-        const seq = subject ? docs.find((d) => d.filename.includes(subject))?.seq : undefined;
+        const targetGrade = grade ?? (picked ? gradeInFilename(picked.filename) : null);
+        const seq = all ? undefined : picked?.seq;
         const results = await autoFetchEvaluation(school, year, { all: !!all, seq, semester });
+
+        // subject가 주어지면 문서 내용을 구조화해 해당 과목의 평가표만 골라낸다.
+        // (전과목 통합본이 아니라 애초에 과목 하나짜리 문서면 structureEvaluation이 null을 반환하고
+        //  아래는 그냥 건너뛰어, 기존 evaluationSections(키워드 블록 추출) 결과가 그대로 쓰인다.)
+        if (subject && !all && results.length === 1) {
+          const structured = structureEvaluation(results[0].markdown);
+          if (structured) {
+            const gradeEntry = targetGrade != null
+              ? structured.grades.find((g) => g.grade === targetGrade)
+              : (structured.grades.length === 1 ? structured.grades[0] : undefined);
+            if (!gradeEntry && structured.grades.length > 1) {
+              // 1~N학년을 한 파일에 합본한 학교(파일명엔 학년 표기가 없음) — 문서 안에는
+              // 학년별 종합표가 여러 개라 grade 없이는 어느 학년의 과목인지 특정할 수 없다.
+              return ok(
+                `이 문서는 여러 학년을 합본하고 있어 grade 없이는 "${subject}" 과목을 특정할 수 없습니다.\n` +
+                  structured.grades.map((g) => `- ${g.label || `${g.grade}학년`}: ${g.subjects.join(", ")}`).join("\n") +
+                  `\n\ngrade=1|2|3처럼 지정해 다시 요청하세요.`
+              );
+            }
+            if (gradeEntry) {
+              const subjKey = Object.keys(gradeEntry.details ?? {}).find(
+                (k) => subject.includes(k) || k.includes(subject)
+              );
+              if (subjKey && gradeEntry.details?.[subjKey]) {
+                results[0] = { ...results[0], evaluationSections: [gradeEntry.details[subjKey]] };
+              } else {
+                return ok(
+                  `"${subject}" 과목을 ${school.name}${roundNote} 문서(${gradeEntry.label || "학년 미상"})에서 찾지 못했습니다.\n` +
+                    `문서에 있는 과목: ${gradeEntry.subjects.join(", ") || "(없음)"}`
+                );
+              }
+            }
+          }
+        }
+
         const parts: string[] = [`# ${school.name} — 교수·학습 및 평가 운영 계획${roundNote}\n`];
         for (const r of results) {
           parts.push(`## 📄 ${r.filename} (${r.fileType})\n`);

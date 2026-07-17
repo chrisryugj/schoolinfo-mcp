@@ -44,16 +44,17 @@ export function renderPage(regions: Regions, kinds: string[]): string {
 <meta property="og:type" content="website"/>
 <meta property="og:site_name" content="우리 학교 알리미"/>
 <meta property="og:locale" content="ko_KR"/>
-<meta property="og:url" content="https://school-mcp.fly.dev/"/>
+<meta property="og:url" content="https://school.gomdori.app/"/>
+<link rel="canonical" href="https://school.gomdori.app/"/>
 <meta property="og:title" content="우리 학교 알리미 — 학교 비교·수행평가, 흩어진 공시를 한 표로"/>
 <meta property="og:description" content="같은 동네 학교를 한 표로 비교하고, hwp 첨부에 묻힌 수행평가 계획을 표로 풀어 드려요. 학교 이름만 입력하면 한 번에. 설치·가입 없이."/>
-<meta property="og:image" content="https://school-mcp.fly.dev/og.png"/>
+<meta property="og:image" content="https://school.gomdori.app/og.png"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="우리 학교 알리미"/>
 <meta name="twitter:description" content="같은 동네 학교를 한 표로 비교하고, 수행평가는 표로. 학교 이름 하나로."/>
-<meta name="twitter:image" content="https://school-mcp.fly.dev/og.png"/>
+<meta name="twitter:image" content="https://school.gomdori.app/og.png"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -255,6 +256,11 @@ export function renderPage(regions: Regions, kinds: string[]): string {
   /* 비교표: 선택한 내 학교 행 강조 (sticky 첫 열 배경도 함께) */
   .out table.wide tr.mine td{background:var(--hl-bg); color:var(--accent-ink);}
   .out table.wide tr.mine td:first-child{background:rgba(181,86,42,.2);}
+  /* 병합셀 표(수행평가 반영비율·월별계획 등): 첫 열이 행마다 달라 sticky 라벨이 어긋나므로
+     고정 해제(가로 스크롤 시 셀 겹침 방지) + 라벨 배경 오적용 제거. 단순 그리드 비교표는 무영향. */
+  .out table.wide.merged th:first-child,
+  .out table.wide.merged td:first-child{position:static;}
+  .out table.wide.merged td:first-child{background:var(--surface); color:var(--ink); font-weight:inherit;}
   .scroll-hint{display:none; font-size:12px; letter-spacing:.01em; color:var(--ink-dim); margin:-6px 2px 14px; text-align:center;}
   /* 학생수 비교 가로 막대 (표 위 한눈 요약) */
   .barlist{margin:14px 0 6px; display:flex; flex-direction:column; gap:9px;}
@@ -281,6 +287,12 @@ export function renderPage(regions: Regions, kinds: string[]): string {
     .out table.kv td:last-child{color:var(--ink); font-weight:600; text-align:right; flex:0 0 auto; max-width:58%; word-break:break-word;}
     .scroll-hint{display:block;}
     .out table.wide th:first-child,.out table.wide td:first-child{max-width:42vw; white-space:normal; word-break:keep-all; overflow-wrap:anywhere;}
+    /* 수행평가 표 중 열이 좁은 것(월별계획·세부 배점 등, ≤8열)은 nowrap 가로스크롤 대신 화면폭에
+       맞춰 줄바꿈 — 긴 성취기준·평가요소가 잘리지 않고 한 화면에. kordoc이 HTML표/파이프표를 섞어
+       내보내도 eval 컨테이너 단위로 일관 적용(비교표·공시는 무영향). 열이 많은 반영비율표(11열)는
+       .fitwrap이 안 붙어 스크롤 유지(글자 세로 쪼개짐 방지). */
+    .out.evalwrap table.wide.fitwrap{min-width:0;}
+    .out.evalwrap table.wide.fitwrap th,.out.evalwrap table.wide.fitwrap td{white-space:normal; word-break:break-word;}
   }
 
   /* ===== State / spinner ===== */
@@ -1012,7 +1024,7 @@ async function loadEval(ctx, seq, year){
       return;
     }
     if (d.mode === 'structured'){ renderStructured(ctx, d); return; }
-    render('📋 '+h(d.school)+' 수행평가 계획', d.markdown, downloadBar(ctx, d.downloads, d.year));
+    render('📋 '+h(d.school)+' 수행평가 계획', d.markdown, downloadBar(ctx, d.downloads, d.year), 'evalwrap');
   }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 
@@ -1067,14 +1079,14 @@ function renderStructured(ctx, d){
         + (d.markdown ? ' 더 자세한 내용은 위 <b>📄 전체 평가계획 원문 보기</b>에서 확인할 수 있어요.' : '') + '</p>';
       return;
     }
-    box.innerHTML = '<div class="detail-head">📑 ' + h(subj) + ' 성취기준·평가기준</div><div class="out" id="stDetailTbl"></div>';
+    box.innerHTML = '<div class="detail-head">📑 ' + h(subj) + ' 성취기준·평가기준</div><div class="out evalwrap" id="stDetailTbl"></div>';
     const dt = box.querySelector('#stDetailTbl');
     dt.innerHTML = safeHtml(html);
     // render()와 동일하게 열 수로 wide/kv 분기 — 2열 서술형 표가 nowrap으로 가로폭주하지 않게
     dt.querySelectorAll('table').forEach(t => {
       let cols=0; for (const r of t.rows) cols=Math.max(cols, r.cells.length);
       if (cols>2){
-        t.classList.add('wide');
+        t.classList.add('wide'); markMerged(t);
         const w=document.createElement('div'); w.className='tablewrap'; t.parentNode.insertBefore(w,t); w.appendChild(t);
         const hint=document.createElement('div'); hint.className='scroll-hint'; hint.textContent='← 성취기준 표를 좌우로 →';
         w.parentNode.insertBefore(hint, w.nextSibling);
@@ -1088,17 +1100,17 @@ function renderStructured(ctx, d){
       + (grades.length>1 ? '<div class="frow"><span class="flabel">학년</span>'+gradeChips()+'</div>' : '')
       + '<div class="frow"><span class="flabel">과목</span>'+subjChips()+'</div>'
       + '</div>'
-      + '<div class="tablewrap"><div class="out" id="stTable"></div></div>'
+      + '<div class="tablewrap"><div class="out evalwrap" id="stTable"></div></div>'
       + '<div class="scroll-hint">← 표를 좌우로 넘겨보세요 →</div>'
       + '<div id="stDetail"></div>';
     const out = card.querySelector('#stTable');
     out.innerHTML = safeHtml(grades[gi].tableHtml);
     const t = out.querySelector('table');
-    if (t){ t.classList.add('wide'); applyFilter(t); gaugePercentCells(t); }
+    if (t){ t.classList.add('wide'); markMerged(t); applyFilter(t); gaugePercentCells(t); }
     drawDetail();
   };
   card.addEventListener('click', (e) => {
-    if (e.target.closest('[data-fulldoc]')){ openModal('📄 '+h(d.school)+' 평가계획 원문', mdWithGradeNav(d.markdown)); return; }
+    if (e.target.closest('[data-fulldoc]')){ openModal('📄 '+h(d.school)+' 평가계획 원문', mdWithGradeNav(d.markdown, 'evalwrap')); return; }
     const gb = e.target.closest('[data-g]');
     if (gb){ gi = +gb.getAttribute('data-g'); subj = '전체'; draw(); return; }
     const sb = e.target.closest('[data-s]');
@@ -1119,7 +1131,7 @@ async function loadAllEval(ctx, year){
     const r = { json: () => cachedJson('/api/evaluation?'+qp(ctx, extra)) };
     const d = await r.json();
     if (d.error) throw new Error(d.error);
-    render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year));
+    render('📚 '+h(d.school)+' 수행평가 계획 (전체)', d.markdown, downloadBar(ctx, d.downloads, d.year), 'evalwrap');
   }catch(e){ $('output').innerHTML = info('지금은 정보를 불러오지 못했어요. 잠깐 뒤에 다시 해주세요.'); }
 }
 /* ── 학사일정 (NEIS) ── */
@@ -1322,12 +1334,24 @@ async function loadDigest(ctx){
 // 마크다운 → .out 컨테이너(표 모바일 가공 포함). render()와 모달이 공용.
 //  - 2열(항목·값)  → kv: 모바일 카드형 스택 (가로스크롤 없이)
 //  - 3열 이상      → wide: 가로 스크롤 래퍼 + 첫 열 고정 + 넘김 힌트
-function mdToOut(md){
-  const wrap = document.createElement('div'); wrap.className='out'; wrap.innerHTML = safeMd(md);
+// 넓은 표 후처리 (수행평가 표 렌더링 정상화):
+//  - .merged: 병합셀(rowspan/colspan) 표는 행마다 첫 셀이 달라(구분/중간고사/서·논술형…) sticky
+//    첫 열 라벨 처리가 어긋나 가로 스크롤 시 뒤죽박죽 → 고정 해제.
+//  - .fitwrap: 그리드 열이 좁으면(≤8, colspan 반영) 모바일에서 화면폭에 맞춰 줄바꿈(잘림 없음).
+//    열이 많으면(반영비율표 11열 등) 줄바꿈 시 "1/0/0"처럼 글자가 세로로 쪼개지므로 스크롤 유지.
+function markMerged(t){
+  if (!t) return;
+  if (t.querySelector('[colspan],[rowspan]')) t.classList.add('merged');
+  let cols = 0;
+  for (const r of t.rows){ let c = 0; for (const cell of r.cells) c += cell.colSpan || 1; if (c > cols) cols = c; }
+  if (cols && cols <= 8) t.classList.add('fitwrap');
+}
+function mdToOut(md, outCls){
+  const wrap = document.createElement('div'); wrap.className = 'out'+(outCls?' '+outCls:''); wrap.innerHTML = safeMd(md);
   wrap.querySelectorAll('table').forEach(t => {
     let cols = 0; for (const r of t.rows) cols = Math.max(cols, r.cells.length);
     if (cols > 2){
-      t.classList.add('wide');
+      t.classList.add('wide'); markMerged(t);
       const w=document.createElement('div'); w.className='tablewrap';
       t.parentNode.insertBefore(w,t); w.appendChild(t);
       const hint=document.createElement('div'); hint.className='scroll-hint'; hint.textContent='← 표를 좌우로 넘겨보세요 →';
@@ -1456,8 +1480,8 @@ function subjectAccordion(wrap){
   return did;
 }
 // 평가계획 본문 + 상단 바로가기. 통합표는 교과 아코디언으로 재구성(되면 바로가기 칩 생략).
-function mdWithGradeNav(md){
-  const out = mdToOut(md);
+function mdWithGradeNav(md, outCls){
+  const out = mdToOut(md, outCls);
   const box = document.createElement('div');
   const gnav = gradeNav(out);
   const accOk = subjectAccordion(out);
@@ -1467,10 +1491,10 @@ function mdWithGradeNav(md){
   box.appendChild(out);
   return box;
 }
-function render(titleHtml, md, dlHtml){
+function render(titleHtml, md, dlHtml, outCls){
   const card = document.createElement('div'); card.className='card fade';
   card.innerHTML = '<div class="result-head"><h2>'+titleHtml+'</h2></div>' + (dlHtml||'');
-  card.appendChild(mdWithGradeNav(md));
+  card.appendChild(mdWithGradeNav(md, outCls));
   $('output').innerHTML=''; $('output').appendChild(card);
   $('output').scrollIntoView({behavior:'smooth', block:'start'});
 }

@@ -416,7 +416,12 @@ function evalScore(filename: string): number {
  * 이 경우 학년으로 거를 대상이 없다는 뜻이므로 그대로 통과시켜야 한다.
  */
 export function gradeInFilename(filename: string): number | null {
-  const m = filename.match(/([1-6])\s*학년/);
+  // "2026학년도" 의 끝자리를 학년으로 오독하지 않아야 한다. 한국 학교 문서는 파일명에
+  // 거의 항상 학년도가 들어가서, 이걸 막지 않으면 **모든 파일이 학년 표기를 가진 것으로
+  // 잡히고 값도 틀린다** (실측: "2026학년도 한문과…" → 6, "2025학년도 3학년…" → 5).
+  //   (?<![0-9])  앞이 숫자면 연도의 일부 → 제외
+  //   (?!도)      "학년도" 는 학년이 아님
+  const m = filename.match(/(?<![0-9])([1-6])\s*학년(?!도)/);
   return m ? Number(m[1]) : null;
 }
 

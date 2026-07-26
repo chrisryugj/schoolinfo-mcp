@@ -3,7 +3,7 @@
 // 이를 정규화해 hwpx와 동일하게 학년/과목 칩 UI 데이터를 만들어내야 한다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { structureEvaluation } from "../src/evaluation.js";
+import { structureEvaluation, gradeInFilename } from "../src/evaluation.js";
 
 // 통합형 PDF를 흉내낸 GFM 마크다운: 학년 캡션 + 한 학년 전과목 종합표(5과목 이상).
 const PDF_MD = `# 2026학년도 ○○중학교 교육과정 평가계획
@@ -59,4 +59,22 @@ test("structureEvaluation: HWPX(HTML <table>) 경로는 GFM 정규화의 영향�
   // <table>가 이미 있으면 GFM 변환을 건너뛴다 (가드 검증). 학년/5과목 없으니 null.
   const htmlMd = `<table><tr><td>국어</td><td>수행평가</td></tr></table>`;
   assert.equal(structureEvaluation(htmlMd), null);
+});
+
+// 회귀: 파일명의 "2026학년도" 끝자리를 학년으로 오독하던 문제.
+// 한국 학교 문서는 파일명에 거의 항상 학년도가 들어가서, 막지 않으면 모든 파일이
+// 학년 표기를 가진 것으로 잡히고 값도 틀린다(실측 파일명 기준).
+test("gradeInFilename — 학년도를 학년으로 오독하지 않는다", () => {
+  // 학년 표기가 없는 실제 파일명 → null (기존엔 2026 의 6 을 잡아 6 을 반환)
+  assert.equal(gradeInFilename("2026학년도 한문과 1학기 교수학습 및 평가운영 계획.hwp"), null);
+  assert.equal(gradeInFilename("2026학년도 자양중 1학기 교수·학습 및 평가계획.hwpx"), null);
+  assert.equal(gradeInFilename("2026학년도 광남고 학교교육과정 편성·운영·평가 계획.pdf"), null);
+
+  // 실제 학년 표기는 그대로 인식
+  assert.equal(gradeInFilename("6. 2026학년도 6학년 1학기 교수학습 및 평가 계획.hwp"), 6);
+  assert.equal(gradeInFilename("4. 2026학년도 4학년 1학기 교수학습 및 평가 계획.hwp"), 4);
+
+  // 연도와 학년이 다를 때 연도를 집어가지 않는다 (기존엔 2025 의 5 를 반환)
+  assert.equal(gradeInFilename("2025학년도 3학년 전과목 평가계획.hwp"), 3);
+  assert.equal(gradeInFilename("3 학년 평가계획.hwp"), 3);
 });

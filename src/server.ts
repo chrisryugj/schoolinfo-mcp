@@ -174,7 +174,7 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       // 웹 기반 MCP 클라이언트(claude.ai 등) 대비 CORS (Origin이 있을 때만 반사, 와일드카드 폴백 없음)
       if (req.headers.origin) res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
       res.setHeader("Vary", "Origin");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "POST, DELETE, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, mcp-protocol-version, authorization");
       res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
       if (req.method === "OPTIONS") return res.writeHead(204).end();

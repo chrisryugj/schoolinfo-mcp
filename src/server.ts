@@ -178,6 +178,28 @@ export async function handleRequest(req: http.IncomingMessage, res: http.ServerR
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, mcp-session-id, mcp-protocol-version, authorization");
       res.setHeader("Access-Control-Expose-Headers", "mcp-session-id");
       if (req.method === "OPTIONS") return res.writeHead(204).end();
+      // GET(서버→클라이언트 SSE 스트림)은 지원하지 않는다.
+      //  이 엔드포인트는 stateless라 서버가 먼저 보낼 메시지가 없다. 그런데 SDK의
+      //  handleGetRequest는 GET을 받으면 아무것도 보내지 않는 SSE 스트림을 열고 닫지 않아,
+      //  스트림을 여는 클라이언트(예: Google Antigravity)가 "연결 중"에서 멈춘다.
+      //  MCP 규격은 이 경우 405를 반환하도록 정하고 있다.
+      //  https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
+      //  > The server MUST either return Content-Type: text/event-stream in response to
+      //  > this HTTP GET, or else return HTTP 405 Method Not Allowed, indicating that the
+      //  > server does not offer an SSE stream at this endpoint.
+      if (req.method === "GET") {
+        res.writeHead(405, {
+          "Content-Type": "application/json; charset=utf-8",
+          Allow: "POST, DELETE, OPTIONS",
+        });
+        return res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32000, message: "Method Not Allowed: this endpoint does not offer an SSE stream" },
+            id: null,
+          }),
+        );
+      }
       if (rateLimited(clientIp(req), now)) {
         res.writeHead(429, { "Content-Type": "application/json; charset=utf-8" });
         return res.end(JSON.stringify({ error: "요청이 너무 많습니다." }));

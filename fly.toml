@@ -2,7 +2,7 @@
 # 인증키는 코드/이 파일이 아니라 secret으로: fly secrets set SCHOOLINFO_API_KEY=...
 
 app = "school-mcp"
-primary_region = "nrt"  # 도쿄 (한국에서 가장 가까운 fly 리전)
+primary_region = "nrt"
 
 [build]
 

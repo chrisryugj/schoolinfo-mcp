@@ -2,6 +2,7 @@
 
 **내 아이 학교, 검색하지 말고 물어보세요.**
 
+[![version](https://img.shields.io/badge/version-0.3.0-blue.svg)](./CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen.svg)](https://nodejs.org)
 [![web](https://img.shields.io/badge/웹앱-school.gomdori.app-black.svg)](https://school.gomdori.app)
@@ -22,7 +23,7 @@
 | 🤖 **AI에게 질문** (원격 MCP) | Claude/Cursor 쓰는 분 | **없음.** URL 한 줄 |
 | ⌨️ **CLI / 자동알림 / 로컬 MCP** | 개발자·파워유저 | 인증키 |
 
-> *최근 정비(2026-06): 학교 비교·수행평가 중심으로 화면을 재배치하고, 평가계획 교과 아코디언·응답 캐시·모바일 표시를 다듬었습니다. 자세한 내역은 [CHANGELOG](./CHANGELOG.md).*
+> *최근 정비: 학교 비교·수행평가 중심으로 화면을 재배치하고 평가계획 교과 아코디언·응답 캐시·모바일 표시를 다듬었습니다(2026-06, [CHANGELOG](./CHANGELOG.md) 0.3.0). 이후 웹앱을 **Vercel `school.gomdori.app`으로 이전**하고, 2026 행정구역 개편(전남광주통합특별시·인천 신설구·화성 분구)과 평가계획 학기·학년·과목 지정, 교육과정 편제(2-가) 조회를 추가했습니다(2026-07, 커밋 로그 참조).*
 
 ---
 
@@ -31,6 +32,10 @@
 브라우저만 있으면 됩니다. 아래 주소로 접속하세요:
 
 ### 👉 https://school.gomdori.app
+
+맨 위 탭으로 **세 가지 모드**를 오갑니다 — 📋 **수행평가·내신**(첫 화면) · 📊 **학교 비교**(학교를 먼저 안 찾아도 지역+학교급만으로 비교표) · 🎓 **대학 진학**(전국 49개 대학 전공별 권장 이수과목, 내 선택과목을 골라두면 ✓로 대조).
+
+수행평가·내신 모드는 이렇게 씁니다:
 
 1. **학교 이름만 입력** (예: "자양중") → `학교 찾기`
    *(지역을 몰라도 됩니다. 전국에서 바로 찾아줘요. 시도/시군구로 좁혀 찾고 싶으면 `지역으로 검색` 탭.)*
@@ -55,7 +60,7 @@
 
 ### 방법 A — 원격 MCP (설치·빌드·인증키 전부 불필요, 추천)
 
-이미 fly에 떠 있는 서버에 연결만 하면 됩니다. 인증키는 **서버에 있으니** 각자 발급할 필요가 없어요.
+공식 원격 MCP는 통합 호스트 `mcp.gomdori.app`(fly 머신 1대에 MCP 5종 동거)의 **`/school`** 경로입니다. 연결만 하면 되고, 인증키는 **서버에 있으니** 각자 발급할 필요가 없어요.
 
 `claude_desktop_config.json` (Claude Desktop) 또는 Cursor MCP 설정에 추가:
 
@@ -136,7 +141,7 @@
 > Claude가 알아서 학교를 찾고, hwp를 내려받아 변환하고, 표로 정리해줍니다.
 > 학교코드·연도·파일 위치 같은 건 **하나도 몰라도 됩니다.**
 
-### 제공 도구 (로컬 13종 · 원격 12종)
+### 제공 도구 (로컬 15종 · 원격 14종)
 
 | 도구 | 하는 일 |
 |------|---------|
@@ -149,10 +154,12 @@
 | `get_school_meal` | **급식 식단 + 알레르기 회피 필터** (날짜별 요리·알레르기 18종·칼로리·영양, NEIS) |
 | `get_school_week` | **이번주 브리핑** (급식·학사일정·D-day; 학년·반 주면 오늘 시간표까지, NEIS) |
 | `get_exam_calendar` | **지역 시험 캘린더** — 여러 학교 중간·기말고사 일정을 한 타임라인으로 (학원·학부모, NEIS) |
-| `get_school_report` | **학교 비교 리포트** — 같은 시군구 학교들을 학급당 인원·급식 운영방식·교원 기간제 비율·동아리 수로 한 표에 (전학·입학) |
+| `get_school_report` | **학교 비교 리포트** — 같은 시군구 학교들을 학급당 인원·급식 운영방식/1식 식품비·교원 기간제 비율·동아리 수·1인당 장서로 한 표에 (전학·입학) |
 | `get_evaluation_plan` | **수행평가 계획 자동 조회** (hwp 다운로드 → 파싱 → 표 추출) |
+| `get_curriculum_plan` | **교육과정 편제 조회** — 「학교교육과정 편성·운영 및 평가에 관한 사항」(2-가) 첨부를 내려받아 교과(군)별 이수단위/시간 배당표 추출 |
+| `get_admission_subjects` | **전공 연계 권장 이수과목** — 대학 모집단위(학과)별로 고교에서 이수하면 좋은 선택과목 (`src/admission.json`) |
 | `get_subject_achievement` | **교과별 학업성취 사항** 확인 링크 안내 (과목별 평균·성취도 A~E — 캡차 보호로 자동조회 불가, 중·고) |
-| `parse_evaluation_file` | 직접 받은 평가계획 파일(hwp/pdf/docx) 변환 |
+| `parse_evaluation_file` | 직접 받은 평가계획 파일(hwp/pdf/docx) 변환 — **로컬 구동 전용**(서버 파일시스템을 읽어 원격 MCP에는 미등록) |
 
 ---
 
@@ -313,6 +320,8 @@ schoolinfo achievement 서울 강남구 중학교 개포중학교   # 교과별 
 schoolinfo exams  서울 강남구 중학교                   # 지역 시험 캘린더 (인근 학교 전체, NEIS)
 schoolinfo exams  서울 강남구 중학교 개포중 대청중     # 특정 학교들 시험만
 schoolinfo schedule 서울 강남구 중학교 개포중학교      # 학사일정 (시험·방학 등, NEIS_API_KEY 필요)
+schoolinfo meal   서울 강남구 중학교 개포중학교 우유 땅콩  # 오늘 급식 (뒤에 회피 알레르기 나열, NEIS)
+schoolinfo week   서울 강남구 중학교 개포중학교 2 3    # 이번주 브리핑 (급식·일정·D-day, 학년·반 주면 시간표, NEIS)
 schoolinfo parse "C:\Downloads\2026_평가계획.hwp"     # 받은 hwp → 마크다운 + 수행평가 추출
 schoolinfo check 서울 강남구 중학교 개포중학교         # 변경 감지 + 알림 (스케줄러용)
 ```
@@ -353,6 +362,8 @@ vercel build --prod && vercel deploy --prebuilt --prod   # 로컬 빌드 후 업
 
 hwp/hwpx/pdf 파싱은 순수 JS(Chromium 불필요)라 서버리스 함수로 충분합니다. fly.io 등 일반 Node 호스트에는 `node dist/server.js`로도 그대로 띄울 수 있습니다(같은 `handleRequest` 공용).
 
+> 공식 원격 MCP(`mcp.gomdori.app/school`)는 이 레포가 아니라 **통합 호스트 `gomdori-mcp`**(fly 머신 1대에 MCP 5종 동거, 비공개 레포)가 서빙합니다 — GitHub main을 커밋 SHA로 고정해 빌드하므로, 반영하려면 통합 호스트의 핀을 갱신하고 배포해야 합니다.
+
 ---
 
 ## 🧩 무엇을 조회할 수 있나 (공시 35종)
@@ -376,17 +387,19 @@ hwp/hwpx/pdf 파싱은 순수 JS(Chromium 불필요)라 서버리스 함수로 �
 학교알리미 OpenAPI ─┐
  (35종 정형 JSON)   ├─→ SchoolInfoClient ─→ MCP 도구 / CLI / 웹앱
                     │
-평가계획 hwp 첨부 ──┤─→ kordoc(parse) ─→ 수행평가 섹션 추출
+평가계획·편제 첨부 ─┤─→ kordoc(parse) ─→ 수행평가 표 / 교과 편제표 추출
                     │
-NEIS 개방포털 ──────┘─→ 학사일정 (시험·방학 등)
+NEIS 개방포털 ──────┘─→ 학사일정·급식·시간표
 ```
 
 | 모듈 | 역할 |
 |------|------|
 | `src/client.ts` | OpenAPI 클라이언트(지역 학교검색+공시) + **학교명 전국검색**(`searchSchoolsByName`) |
 | `src/codes.ts` | 시도/시군구/학교급/공시항목 코드 매핑 + 약칭 정규화 |
-| `src/evaluation.ts` | **평가계획 hwp 자동 다운로드** + kordoc 파싱·수행평가 추출 |
-| `src/neis.ts` | **NEIS 학사일정** 조회 (학교코드 해석·동명이교 구분·월별 포맷) |
+| `src/evaluation.ts` | **평가계획 hwp 자동 다운로드** + kordoc 파싱·수행평가 추출 (교육과정 편제 2-가 포함) |
+| `src/neis.ts` | **NEIS 학사일정·급식·시간표** 조회 (학교코드 해석·동명이교 구분·월별 포맷) |
+| `src/admission.ts` | **대학 전공별 권장 이수과목** 매칭 (`admission.json`·`admission.joint.json`, 2015↔2022 개정 과목 별칭·본교/분교 분리) |
+| `src/achievement.ts` | 교과별 학업성취 사항 공시 화면 딥링크 안내 (캡차 보호로 자동조회 불가) |
 | `src/lib/` | 공통 인프라 — `fetch-with-retry`(재시도·타임아웃·키마스킹), `cache`(LRU+TTL) |
 | `src/regions.json` | 시도·시군구 행정코드 (2026 개편 반영 — 전남광주통합특별시·인천 신설구·화성 분구, 과도기 구·신 명칭 병행) |
 | `src/labels.json` | 35종 공시항목 컬럼ID→한글 라벨 |
@@ -403,7 +416,7 @@ NEIS 개방포털 ──────┘─→ 학사일정 (시험·방학 등)
 - 외부(공공API·공문서) 데이터를 DOM에 넣을 때 **XSS 이스케이프 + DOMPurify + CSP** 3중 방어
 - 파일 다운로드 50MB / 파싱 200MB 상한, 외부 요청 타임아웃, 경로 순회 차단
 - 원본 다운로드는 파일명 정제 + `Content-Disposition` RFC5987 인코딩(헤더 인젝션 차단)
-- 웹앱·원격 MCP IP rate limit (분당 60회), 에러 메시지에 내부 정보 비노출
+- 웹앱·원격 MCP IP rate limit (일반 분당 60회 / 평가계획 다운로드·파싱은 분당 10회 + 전역 동시성 4), 에러 메시지에 내부 정보 비노출
 - 원격 MCP는 **stateless**(세션 미보관) + 서버 로컬파일 접근 도구(`parse_evaluation_file`) 비노출
 
 ---

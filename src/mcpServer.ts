@@ -10,6 +10,9 @@
 // (공개 엔드포인트에서 서버 파일시스템 접근 도구를 노출하지 않기 위함).
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+// 클라이언트가 핸드셰이크에서 받는 serverInfo.version. 손으로 적으면 릴리스마다
+// package.json 과 어긋난다(실제로 0.2.0 에서 멈춰 있었다) — tsup 이 번들에 인라인한다.
+import { version as pkgVersion } from "../package.json";
 import { z } from "zod";
 import { readFileSync, statSync, realpathSync } from "fs";
 import { resolve, extname } from "path";
@@ -84,7 +87,7 @@ function err(text: string) {
  */
 export function buildMcpServer(opts: { localFiles?: boolean } = {}): McpServer {
   const localFiles = opts.localFiles !== false;
-  const server = new McpServer({ name: "schoolinfo-mcp", version: "0.2.0" });
+  const server = new McpServer({ name: "schoolinfo-mcp", version: pkgVersion });
 
   // ─── 0. 학교명 전국 검색 (지역/학교급 몰라도 됨) ────────
   server.tool(

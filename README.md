@@ -62,21 +62,41 @@
 
 공식 원격 MCP는 통합 호스트 `mcp.gomdori.app`(fly 머신 1대에 MCP 5종 동거)의 **`/school`** 경로입니다. 연결만 하면 되고, 인증키는 **서버에 있으니** 각자 발급할 필요가 없어요.
 
-`claude_desktop_config.json` (Claude Desktop) 또는 Cursor MCP 설정에 추가:
+**Claude Code** — 한 줄이면 끝:
+
+```bash
+claude mcp add --transport http schoolinfo https://mcp.gomdori.app/school
+```
+
+프로젝트 `.mcp.json`에 직접 적어도 됩니다:
 
 ```json
 {
   "mcpServers": {
     "schoolinfo": {
-      "type": "streamable-http",
+      "type": "http",
       "url": "https://mcp.gomdori.app/school"
     }
   }
 }
 ```
 
-> URL **한 줄**이면 끝. 재시작하면 도구가 활성화됩니다. (Streamable HTTP, stateless — 세션 관리 없음)
-> 클라이언트가 원격 MCP를 지원하지 않으면 `npx mcp-remote https://mcp.gomdori.app/school`로 브리지하세요.
+**Claude.ai 웹** — 설정 → 커넥터 → 커스텀 커넥터 추가 → URL에 `https://mcp.gomdori.app/school` 입력.
+
+**그 밖의 클라이언트(Claude Desktop·Cursor 등)** — 원격 MCP를 직접 지원하지 않는 클라이언트는 stdio 브리지를 거칩니다:
+
+```json
+{
+  "mcpServers": {
+    "schoolinfo": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.gomdori.app/school"]
+    }
+  }
+}
+```
+
+> 인증키는 서버에 있으니 각자 발급할 필요가 없습니다. (Streamable HTTP, stateless — 세션 관리 없음)
 
 ### 방법 B — 로컬 설치 (직접 구동, 인증키 필요)
 

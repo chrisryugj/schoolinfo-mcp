@@ -10,6 +10,10 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+# non-root 실행 (node 이미지 기본 제공 uid 1000)
+RUN chown -R node:node /app
+USER node
+
 ENV PORT=8080
 EXPOSE 8080
 
